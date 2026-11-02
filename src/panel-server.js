@@ -60,7 +60,15 @@ function hasManagePermission(permissions) {
   } catch { return false; }
 }
 
-export function startPanelServer({ client, getApplications, featureStore }) {
+export function startPanelServer({ client, getApplications, featureStore, discordMode = 'gateway' }) {
+  if (!['gateway', 'rest'].includes(discordMode)) throw new Error('Nieznany tryb połączenia panelu z Discordem.');
+  // REST access lets the separate panel manage a server; it says nothing about
+  // the worker's Gateway connection. Only the bot process can report that here.
+  const isDiscordAvailable = () => discordMode === 'rest' || client.isReady();
+  const connectionStatus = () => ({
+    botReady: discordMode === 'rest' ? null : client.isReady(),
+    discordReady: isDiscordAvailable(),
+  });
   const { CLIENT_ID = '', CLIENT_SECRET = '', GUILD_ID = '', PANEL_BASE_URL = 'http://localhost:3000', PANEL_SESSION_SECRET = '', PANEL_HOST = '127.0.0.1' } = process.env;
   const panelPort = Number(process.env.PORT || process.env.PANEL_PORT || 3000);
   const baseUrl = PANEL_BASE_URL.replace(/\/+$/, '');
@@ -72,7 +80,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
     const route = requestUrl.pathname;
     try {
       if (req.method === 'GET' && route === '/health') {
-        return json(res, 200, { ok: true, botReady: client.isReady(), panelConfigured: configReady });
+        return json(res, 200, { ok: true, ...connectionStatus(), panelConfigured: configReady });
       }
 
       if (req.method === 'GET' && route === '/auth/discord') {
@@ -133,12 +141,12 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/session') {
           if (!current?.value.user) return json(res, 401, { authenticated: false, configured: configReady });
           const guild = client.guilds.cache.get(GUILD_ID);
-          return json(res, 200, { authenticated: true, user: current.value.user, canManage: current.value.canManage, botReady: client.isReady(), guildName: guild?.name || process.env.SERVER_DISPLAY_NAME || 'Strefa Gry i Rozrywki', guildIcon: guild?.iconURL({ size: 128 }) || null });
+          return json(res, 200, { authenticated: true, user: current.value.user, canManage: current.value.canManage, ...connectionStatus(), guildName: guild?.name || process.env.SERVER_DISPLAY_NAME || 'Strefa Gry i Rozrywki', guildIcon: guild?.iconURL({ size: 128 }) || null });
         }
         if (route === '/api/recruitment') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady() || !client.guilds.cache.has(GUILD_ID)) return json(res, 503, { error: 'Bot nie jest połączony ze skonfigurowanym serwerem.' });
+          if (!isDiscordAvailable() || !client.guilds.cache.has(GUILD_ID)) return json(res, 503, { error: 'Bot nie jest połączony ze skonfigurowanym serwerem.' });
           const applications = Object.values(getApplications()).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
           const counts = { pending: 0, accepted: 0, rejected: 0, closed: 0 };
           for (const app of applications) if (Object.hasOwn(counts, app.status)) counts[app.status]++;
@@ -147,7 +155,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/features') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady() || !client.guilds.cache.has(GUILD_ID)) return json(res, 503, { error: 'Bot nie jest połączony ze skonfigurowanym serwerem.' });
+          if (!isDiscordAvailable() || !client.guilds.cache.has(GUILD_ID)) return json(res, 503, { error: 'Bot nie jest połączony ze skonfigurowanym serwerem.' });
           const state = featureStore.snapshot();
           return json(res, 200, { automations: {
             autoChannels: Boolean(state.autoChannels?.joinChannelId),
@@ -160,7 +168,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/automod') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
+          if (!isDiscordAvailable()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           const botMember = guild.members.me ?? await guild.members.fetchMe();
@@ -215,7 +223,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/server-control') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
+          if (!isDiscordAvailable()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           const channels = await guild.channels.fetch();
@@ -236,7 +244,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/moderation/settings') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
+          if (!isDiscordAvailable()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           const channels = await guild.channels.fetch();
@@ -275,7 +283,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/verification/panel') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
+          if (!isDiscordAvailable()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           const [channels, roles] = await Promise.all([guild.channels.fetch(), guild.roles.fetch()]);
@@ -318,7 +326,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/auto-channels' || route === '/api/voice-support') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
+          if (!isDiscordAvailable()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           const channels = await guild.channels.fetch();
@@ -364,7 +372,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/statistics') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
+          if (!isDiscordAvailable()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           const channels = guild.channels.cache;
@@ -398,7 +406,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/economy/settings') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady() || !client.guilds.cache.has(GUILD_ID)) return json(res, 503, { error: 'Bot nie jest połączony ze skonfigurowanym serwerem.' });
+          if (!isDiscordAvailable() || !client.guilds.cache.has(GUILD_ID)) return json(res, 503, { error: 'Bot nie jest połączony ze skonfigurowanym serwerem.' });
           if (req.method === 'GET') return json(res, 200, featureStore.snapshot().economyConfig);
           if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
           const body = await readJson(req);
@@ -417,7 +425,7 @@ export function startPanelServer({ client, getApplications, featureStore }) {
         if (route === '/api/tickets/panels') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Administrator lub Zarządzanie serwerem.' });
-          if (!client.isReady()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
+          if (!isDiscordAvailable()) return json(res, 503, { error: 'Bot nie jest połączony z Discordem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           if (req.method === 'GET') {

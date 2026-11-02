@@ -9,7 +9,7 @@ export function readConfig(env = process.env) {
   const missing = required.filter(key => !String(env[key] ?? '').trim());
   if (missing.length) throw new Error(`Brakuje konfiguracji w .env: ${missing.join(', ')}`);
   const idFields = [
-    'CLIENT_ID', 'GUILD_ID', 'APPLICATION_CHANNEL_ID', 'ACCEPTED_ROLE_ID', 'STAFF_ROLE_ID', 'LOG_CHANNEL_ID',
+    'CLIENT_ID', 'GUILD_ID', 'APPLICATION_CHANNEL_ID', 'ACCEPTED_ROLE_ID', 'STAFF_ROLE_ID', 'LOG_CHANNEL_ID', 'BOT_STATUS_CHANNEL_ID',
   ];
   for (const key of idFields) {
     const value = String(env[key] ?? '').trim();
