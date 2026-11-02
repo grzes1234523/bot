@@ -97,14 +97,14 @@
         if(!response.ok)throw new Error('Nie można sprawdzić sesji panelu.');
         const session=await response.json();document.body.classList.add('dashboard-layout');$('user').textContent=session.user.username;$('serverName').textContent=session.guildName||'Serwer Discord';if(session.guildIcon){const icon=document.createElement('img');icon.src=session.guildIcon;icon.alt='';$('serverIcon').replaceChildren(icon);}else{$('serverIcon').textContent=(session.guildName||'S').trim().charAt(0).toUpperCase();}$('logout').classList.remove('hidden');
         if(!session.canManage){setStatus('Zalogowano, ale to konto nie ma uprawnienia Zarządzanie serwerem na serwerze bota.','bad');return;}
-        if(!session.botReady){setStatus('Bot nie jest obecnie połączony z serwerem.','bad');return;}
+        if(!(session.discordReady??session.botReady)){setStatus('Panel nie ma obecnie połączenia z serwerem Discord.','bad');return;}
         const economyResponse=await fetch('/api/economy/settings',{credentials:'same-origin'});if(economyResponse.ok){const economySettings=await economyResponse.json();for(const [key,value] of Object.entries(economySettings)){if($(key))$(key).value=value;}renderEconomyPreview();}
         await loadServerControl();await Promise.all([loadAutoChannels(),loadVoiceSupport(),loadModerationSettings(),loadVerificationPanel(),loadAutoMod()]);await loadStatistics().catch(error=>{$('statisticsUpdated').textContent=error.message;});setInterval(()=>loadStatistics().catch(()=>{}),60000);const featureResponse=await fetch('/api/features',{credentials:'same-origin'});if(featureResponse.ok){const featureData=await featureResponse.json();document.querySelectorAll('.automation-state').forEach((badge,index)=>{const enabled=Object.values(featureData.automations)[index];badge.textContent=enabled?'Włączone':'Wymaga konfiguracji';badge.classList.toggle('enabled',enabled);});}await loadTicketPanels();
         const dataResponse=await fetch('/api/recruitment',{credentials:'same-origin'});
         const data=await dataResponse.json();if(!dataResponse.ok)throw new Error(data.error||'Nie można pobrać podsumowania.');
         for(const [key,value] of Object.entries(data.counts))$(key).textContent=value;
         $('applications').innerHTML=data.applications.length?data.applications.map(a=>`<tr><td><code>${escapeHtml(a.id)}</code></td><td><span class="pill ${escapeHtml(a.status)}">${labels[a.status]||escapeHtml(a.status)}</span></td><td>${a.createdAt?new Date(a.createdAt).toLocaleString('pl-PL'):'—'}</td></tr>`).join(''):'<tr><td colspan="3">Brak podań.</td></tr>';
-        $('dashboard').classList.remove('hidden');setStatus('Połączono z botem i serwerem Discord.','good');
+        $('dashboard').classList.remove('hidden');if(session.botReady===null){setStatus('Panel ma dostęp do serwera Discord. Status bota sprawdzisz na kanale status-bota lub w logach usługi strefa-bot.');}else{setStatus('Połączono z botem i serwerem Discord.','good');}
       }catch(error){setStatus(error instanceof TypeError?'Nie można połączyć się z API bota. Włącz bota na tym komputerze i otwórz panel pod adresem http://localhost:3000. GitHub Pages nie uruchamia API.':error.message,'bad');}
     }
     function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

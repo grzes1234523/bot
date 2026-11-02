@@ -173,6 +173,14 @@ Workflow `.github/workflows/ci.yml` uruchamia `npm ci`, sprawdzenie składni, te
 3. Osobny Web Service dla panelu WWW, który komunikuje się z Discordem przez REST. Obie usługi mają ten sam magazyn PostgreSQL, sprawdzanie zdrowia panelu i wdrażanie po zaliczeniu kontroli CI.
 4. Automatyczne wdrożenie dopiero po przejściu kontroli CI.
 
+### Status procesu i diagnostyka
+
+Panel WWW (`npm run panel`) korzysta z REST i nie uruchamia bota. Jego `/health` potwierdza pracę panelu; `discordReady: true` oznacza dostęp panelu do Discorda, a `botReady: null` oznacza nieznany status osobnego workera. Panel uruchomiony wewnątrz bota podaje rzeczywiste `botReady` z połączenia Gateway. Po błędzie logowania worker zamyka HTTP, klienta Discord i bazę, a następnie kończy się kodem 1, zamiast pozostawać pozornie aktywnym procesem.
+
+Po zalogowaniu bot tworzy prywatny kanał `status-bota` i wysyła **BOT ONLINE**. Kanał jest przeznaczony dla Administratorów, bota i opcjonalnej roli `STAFF_ROLE_ID`. Bot potrzebuje uprawnienia **Zarządzanie kanałami**, aby go utworzyć. Istniejący prywatny kanał o tej nazwie zostanie wykorzystany ponownie. Można też ustawić `BOT_STATUS_CHANNEL_ID` na ID własnego kanału tekstowego na tym samym serwerze; wtedy obowiązują uprawnienia wybranego kanału.
+
+Na kanał trafiają wykryte błędy obsługi i połączenia oraz komunikat o planowanym wyłączeniu. Raporty pomijają sekrety i pełne stosy błędów, a powtarzające się błędy są ograniczane. Brak dostępu do kanału nie zatrzymuje rekrutacji. Przy błędzie tokenu, braku połączenia z Discordem albo nagłym zatrzymaniu hostingu bot nie może wysłać wiadomości — szczegóły należy wtedy sprawdzić w logach workera. Ostatnia wiadomość **BOT ONLINE** potwierdza udany start w podanej godzinie, a nie bieżący monitoring po nagłym wyłączeniu.
+
 W Render utwórz Blueprint z `render.yaml`, wypełnij wymagane wartości sekretów (`DISCORD_TOKEN`, `CLIENT_ID`, `GUILD_ID`, `APPLICATION_CHANNEL_ID`, `ACCEPTED_ROLE_ID`, `CLIENT_SECRET`) dla obu usług, a potem sprawdź logi migracji i uruchomienia. W Discord Developer Portal dodaj OAuth2 Redirect URI:
 
 ```text

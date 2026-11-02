@@ -18,8 +18,7 @@ const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBit
 client.rest.setToken(cfg.token);
 const guild = await client.guilds.fetch(cfg.guildId);
 await Promise.all([guild.channels.fetch(), guild.roles.fetch()]);
-client.isReady = () => true;
-const server = startPanelServer({ client, getApplications: () => applications.list(), featureStore });
+const server = startPanelServer({ client, getApplications: () => applications.list(), featureStore, discordMode: 'rest' });
 let shutdownPromise;
 
 async function shutdown() {

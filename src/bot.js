@@ -12,6 +12,7 @@ import { createProSystem, isProCommand } from './pro-system.js';
 import { closeDatabase, databaseEnabled } from './database.js';
 import { KeyedLock } from './lock.js';
 import { FormSessions } from './form-sessions.js';
+import { BotStatusReporter, sanitizeDiagnostic } from './status-reporter.js';
 import { QUESTION_STAGES, validateStepAnswers } from './questions.js';
 import {
   labels, panelEmbed, panelButtons, reviewEmbeds, reviewButtons,
@@ -35,6 +36,7 @@ const client = new Client({ intents: [
   GatewayIntentBits.GuildMessages,
   GatewayIntentBits.GuildModeration,
 ] });
+const statusReporter = new BotStatusReporter({ client, cfg });
 const featureHandlers = createFeatureHandlers({ client, cfg, applicationStore: store, featureStore });
 const proSystem = createProSystem({ client, featureStore, cfg });
 const panelServer = startPanelServer({ client, getApplications: () => store.list(), featureStore });
@@ -43,6 +45,11 @@ let shutdownPromise;
 
 const errorMessage = '❌ Nie udało się wykonać operacji. Spróbuj ponownie lub skontaktuj się z administracją.';
 const appId = value => String(value ?? '').trim().toUpperCase();
+
+function reportFailure(context, error) {
+  console.error(`${context}:`, sanitizeDiagnostic(error, [cfg.token]));
+  void statusReporter.reportError(context, error);
+}
 
 function staffAllowed(interaction) {
   if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ||
@@ -143,7 +150,7 @@ async function assignRole(guild, userId) {
     await member.roles.add(roleId, 'Zaakceptowane podanie rekrutacyjne');
     return { assigned: true, message: `Nadano rolę <@&${roleId}>.` };
   } catch (error) {
-    console.error('Błąd nadawania roli:', error);
+    reportFailure('Błąd nadawania roli', error);
     return { assigned: false, message: 'Discord odrzucił nadanie roli — sprawdź uprawnienia i hierarchię.' };
   }
 }
@@ -201,7 +208,7 @@ async function submit(interaction, answers, expanded = true) {
     try {
       channel = await reviewChannel(interaction.guild);
     } catch (error) {
-      console.error('Konfiguracja kanału podań:', error.message);
+      reportFailure('Konfiguracja kanału podań', error);
       return privateReply(interaction, `❌ Podanie nie może zostać wysłane: ${error.message}`);
     }
     const id = crypto.randomBytes(5).toString('hex').toUpperCase();
@@ -238,8 +245,8 @@ async function submit(interaction, answers, expanded = true) {
         allowedMentions: cfg.staffRoleId ? { roles: [cfg.staffRoleId] } : { parse: [] },
       });
     } catch (error) {
-      console.error('Nie udało się wysłać podania na kanał:', error);
-      await store.removeUnsent(id).catch(cleanupError => console.error('Błąd cofania podania:', cleanupError));
+      reportFailure('Nie udało się wysłać podania na kanał', error);
+      await store.removeUnsent(id).catch(cleanupError => reportFailure('Błąd cofania podania', cleanupError));
       return privateReply(interaction, '❌ Nie udało się opublikować podania. Sprawdź uprawnienia bota i spróbuj ponownie.');
     }
     await store.update(id, value => { value.reviewMessageId = message.id; });
@@ -479,7 +486,7 @@ async function recoverUnsent(guild) {
   if (!lost.length) return;
   let channel;
   try { channel = await reviewChannel(guild); }
-  catch (error) { console.error('Nie udało się odzyskać niezapisanych wiadomości:', error.message); return; }
+  catch (error) { reportFailure('Nie udało się odzyskać niezapisanych wiadomości', error); return; }
   for (const app of lost) {
     try {
       const sent = await channel.send({
@@ -488,28 +495,29 @@ async function recoverUnsent(guild) {
       });
       await store.update(app.id, draft => { draft.reviewMessageId = sent.id; draft.reviewChannelId = channel.id; });
       console.log(`Odtworzono podanie ${app.id}`);
-    } catch (error) { console.error(`Błąd odtwarzania ${app.id}:`, error); }
+    } catch (error) { reportFailure(`Błąd odtwarzania ${app.id}`, error); }
   }
 }
 
 client.once(Events.ClientReady, async ready => {
   console.log(`✅ Zalogowano jako ${ready.user.tag} | rekrutacja 3.0`);
+  await statusReporter.online();
   const guild = await ready.guilds.fetch(cfg.guildId).catch(() => null);
   if (!guild) { console.error('Bot nie ma dostępu do GUILD_ID.'); return; }
   await recoverUnsent(guild);
   const refreshStats = () => featureHandlers.refreshStatisticsChannels(guild)
-    .catch(error => console.warn('Nie udało się odświeżyć liczników serwera:', error.message));
+    .catch(error => reportFailure('Nie udało się odświeżyć liczników serwera', error));
   await refreshStats();
   const statsTimer = setInterval(refreshStats, 5 * 60 * 1000);
   shutdownTimers.add(statsTimer);
   statsTimer.unref?.();
-  await proSystem.maintenance().catch(error => console.warn('Nie udało się wznowić automatyzacji ticketów i publikacji:', error.message));
-  const maintenanceTimer = setInterval(() => proSystem.maintenance().catch(error => console.warn('Automatyzacja ticketów nie powiodła się:', error.message)), 60_000);
+  await proSystem.maintenance().catch(error => reportFailure('Nie udało się wznowić automatyzacji ticketów i publikacji', error));
+  const maintenanceTimer = setInterval(() => proSystem.maintenance().catch(error => reportFailure('Automatyzacja ticketów nie powiodła się', error)), 60_000);
   shutdownTimers.add(maintenanceTimer);
   maintenanceTimer.unref?.();
   if (await databaseEnabled()) {
     const sharedStateTimer = setInterval(() => Promise.all([store.refresh(), featureStore.refresh()])
-      .catch(error => console.warn('Nie udało się odświeżyć współdzielonych danych:', error.message)), 5000);
+      .catch(error => reportFailure('Nie udało się odświeżyć współdzielonych danych', error)), 5000);
     shutdownTimers.add(sharedStateTimer);
     sharedStateTimer.unref?.();
   }
@@ -535,33 +543,43 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.isButton()) return await handleButton(interaction);
     if (interaction.isModalSubmit()) return await handleModal(interaction);
   } catch (error) {
-    console.error('Błąd obsługi interakcji:', error);
+    reportFailure('Błąd obsługi interakcji', error);
     if (interaction.isRepliable()) await privateReply(interaction, errorMessage).catch(() => {});
   }
 });
 
-client.on(Events.Error, error => console.error('Błąd klienta Discord:', error));
+client.on(Events.Error, error => reportFailure('Błąd klienta Discord', error));
+client.on(Events.ShardError, error => reportFailure('Błąd połączenia z Discordem', error));
 client.on(Events.VoiceStateUpdate, (oldState, newState) => featureHandlers.voiceState(oldState, newState));
 client.on(Events.MessageDelete, message => featureHandlers.messageDeleted(message));
-client.on(Events.MessageCreate, message => proSystem.message(message).catch(error => console.warn('Nie udało się zapisać aktywności ticketu:', error.message)));
+client.on(Events.MessageCreate, message => proSystem.message(message).catch(error => reportFailure('Nie udało się zapisać aktywności ticketu', error)));
 client.on(Events.ChannelCreate, channel => featureHandlers.channelChanged(channel, true));
 client.on(Events.ChannelDelete, channel => featureHandlers.channelChanged(channel, false));
 client.on(Events.AutoModerationActionExecution, action => featureHandlers.autoModerationAction(action));
-process.on('unhandledRejection', error => console.error('Nieobsłużona obietnica:', error));
+process.on('unhandledRejection', error => reportFailure('Nieobsłużona obietnica', error));
 async function shutdown() {
   if (shutdownPromise) return shutdownPromise;
   shutdownPromise = (async () => {
-  for (const timer of shutdownTimers) clearInterval(timer);
-  await new Promise(resolve => panelServer.close(resolve));
-  client.destroy();
-  await closeDatabase().catch(() => {});
+    for (const timer of shutdownTimers) clearInterval(timer);
+    await statusReporter.offline();
+    const results = await Promise.allSettled([
+      new Promise((resolve, reject) => panelServer.close(error => {
+        if (error && error.code !== 'ERR_SERVER_NOT_RUNNING') reject(error);
+        else resolve();
+      })),
+      Promise.resolve().then(() => client.destroy()),
+      closeDatabase(),
+    ]);
+    const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+    if (failures.length) throw new AggregateError(failures, 'Nie udało się zamknąć wszystkich zasobów bota.');
   })();
   return shutdownPromise;
 }
-process.once('SIGINT', () => { void shutdown().catch(error => console.error('Błąd zamykania bota:', error)); });
-process.once('SIGTERM', () => { void shutdown().catch(error => console.error('Błąd zamykania bota:', error)); });
+process.once('SIGINT', () => { void shutdown().catch(error => reportFailure('Błąd zamykania bota', error)); });
+process.once('SIGTERM', () => { void shutdown().catch(error => reportFailure('Błąd zamykania bota', error)); });
 
-await client.login(cfg.token).catch(error => {
-  console.error('Błąd logowania bota:', error?.name ?? 'Error', error?.code ?? '', error?.message ?? '');
+await client.login(cfg.token).catch(async error => {
+  reportFailure('Błąd logowania bota', error);
   process.exitCode = 1;
+  await shutdown().catch(shutdownError => reportFailure('Błąd zamykania po nieudanym logowaniu', shutdownError));
 });
