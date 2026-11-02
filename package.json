@@ -1,0 +1,25 @@
+{
+  "name": "rekrutacja-discord-pro",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "description": "System rekrutacyjny Discord z rolą po ID, panelami, 15-pytaniowym formularzem i historią podań",
+  "engines": {
+    "node": ">=24.17.0"
+  },
+  "scripts": {
+    "start": "node src/bot.js",
+    "panel": "node src/panel.js",
+    "db:migrate": "node src/migrate.js",
+    "deploy": "node src/deploy-commands.js",
+    "check": "node --check src/bot.js && node --check src/panel.js && node --check src/panel-server.js && node --check src/pro-system.js && node --check src/database.js && node --check src/store.js && node --check src/feature-store.js && node --check src/questions.js && node --check src/form-sessions.js && node --check src/embeds.js && node --check src/commands.js && node --check src/deploy-commands.js && node --test"
+  },
+  "dependencies": {
+    "discord.js": "14.27.0",
+    "dotenv": "^16.6.1",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "yaml": "^2.9.1"
+  }
+}
