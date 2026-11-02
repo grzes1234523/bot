@@ -6,6 +6,35 @@ import { fileURLToPath } from 'node:url';
 const migrationsPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 let poolPromise;
 
+const TRANSIENT_DATABASE_CODES = new Set([
+  'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'EAI_AGAIN',
+  '57P03', '08000', '08001', '08004', '08006', '53300',
+]);
+
+export function isTransientDatabaseError(error) {
+  for (let current = error; current; current = current.cause) {
+    if (TRANSIENT_DATABASE_CODES.has(current.code)) return true;
+  }
+  return false;
+}
+
+export async function retryDatabaseOperation(operation, {
+  attempts = 12,
+  sleep = ms => new Promise(resolve => setTimeout(resolve, ms)),
+  onRetry = () => {},
+} = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isTransientDatabaseError(error) || attempt >= attempts) throw error;
+      const delayMs = Math.min(1000 * (2 ** (attempt - 1)), 10_000);
+      onRetry({ error, attempt, nextAttempt: attempt + 1, delayMs });
+      await sleep(delayMs);
+    }
+  }
+}
+
 async function applyMigrations(pool) {
   await pool.query('CREATE TABLE IF NOT EXISTS strefa_schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
   const files = (await fs.readdir(migrationsPath)).filter(name => /^\d+_[a-z0-9_-]+\.sql$/i.test(name)).sort();
@@ -67,20 +96,39 @@ async function getPool() {
     if (process.env.REQUIRE_DATABASE === 'true') throw new Error('Ta usługa wymaga ustawienia DATABASE_URL.');
     return null;
   }
-  poolPromise ??= (async () => {
-    const { Pool } = await import('pg');
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: Number(process.env.DATABASE_POOL_SIZE || 5),
-      connectionTimeoutMillis: 10_000,
-      idleTimeoutMillis: 30_000,
-      ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
-    });
-    pool.on('error', error => console.error('Błąd bezczynnego połączenia PostgreSQL:', error.message));
-    await applyMigrations(pool);
-    return pool;
-  })();
-  return poolPromise;
+  if (!poolPromise) {
+    poolPromise = (async () => {
+      const { Pool } = await import('pg');
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        max: Number(process.env.DATABASE_POOL_SIZE || 5),
+        connectionTimeoutMillis: 10_000,
+        idleTimeoutMillis: 30_000,
+        ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+      });
+      pool.on('error', error => console.error('Błąd bezczynnego połączenia PostgreSQL:', error.message));
+      try {
+        const attempts = Math.max(1, Math.min(30, Number(process.env.DATABASE_CONNECT_RETRIES) || 12));
+        await retryDatabaseOperation(() => applyMigrations(pool), {
+          attempts,
+          onRetry: ({ error, nextAttempt, delayMs }) => console.warn(
+            `PostgreSQL jest chwilowo niedostępny (${error.code ?? 'błąd połączenia'}); ` +
+            `ponawiam próbę ${nextAttempt}/${attempts} za ${delayMs} ms.`,
+          ),
+        });
+        return pool;
+      } catch (error) {
+        await pool.end().catch(() => {});
+        throw error;
+      }
+    })();
+  }
+  try {
+    return await poolPromise;
+  } catch (error) {
+    poolPromise = null;
+    throw error;
+  }
 }
 
 export async function databaseEnabled() { return Boolean(await getPool()); }
@@ -88,7 +136,6 @@ export async function databaseEnabled() { return Boolean(await getPool()); }
 export async function runMigrations() {
   const pool = await getPool();
   if (!pool) throw new Error('Ustaw DATABASE_URL przed uruchomieniem migracji.');
-  await applyMigrations(pool);
   return true;
 }
 
