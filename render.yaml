@@ -1,0 +1,106 @@
+databases:
+  - name: strefa-bot-db
+    databaseName: strefa_bot
+    user: strefa_bot
+    region: frankfurt
+    plan: 0.5c-1g
+    postgresMajorVersion: "18"
+    ipAllowList: []
+
+services:
+  - type: worker
+    name: strefa-bot
+    runtime: node
+    region: frankfurt
+    plan: 0.5c-512mb
+    numInstances: 1
+    buildCommand: npm ci
+    preDeployCommand: npm run db:migrate
+    startCommand: npm start
+    autoDeployTrigger: checksPass
+    disk:
+      name: bot-backups
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REQUIRE_DATABASE
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: strefa-bot-db
+          property: connectionString
+      - key: STREFA_BOT_DATA_DIR
+        value: /var/data
+      - key: PANEL_HOST
+        value: 127.0.0.1
+      - key: PANEL_PORT
+        value: "3000"
+      - key: PANEL_BASE_URL
+        value: https://strefa-bot-panel.onrender.com
+      - key: DATABASE_SSL
+        value: "false"
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: APPLICATION_CHANNEL_ID
+        sync: false
+      - key: ACCEPTED_ROLE_ID
+        sync: false
+      - key: STAFF_ROLE_ID
+        sync: false
+      - key: LOG_CHANNEL_ID
+        sync: false
+      - key: CLIENT_SECRET
+        sync: false
+      - key: PANEL_SESSION_SECRET
+        generateValue: true
+
+  - type: web
+    name: strefa-bot-panel
+    runtime: node
+    region: frankfurt
+    plan: 0.5c-512mb
+    numInstances: 1
+    buildCommand: npm ci
+    preDeployCommand: npm run db:migrate
+    startCommand: npm run panel
+    autoDeployTrigger: checksPass
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REQUIRE_DATABASE
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: strefa-bot-db
+          property: connectionString
+      - key: PANEL_HOST
+        value: 0.0.0.0
+      - key: PANEL_BASE_URL
+        value: https://strefa-bot-panel.onrender.com
+      - key: DATABASE_SSL
+        value: "false"
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: APPLICATION_CHANNEL_ID
+        sync: false
+      - key: ACCEPTED_ROLE_ID
+        sync: false
+      - key: STAFF_ROLE_ID
+        sync: false
+      - key: LOG_CHANNEL_ID
+        sync: false
+      - key: CLIENT_SECRET
+        sync: false
+      - key: PANEL_SESSION_SECRET
+        generateValue: true
