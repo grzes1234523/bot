@@ -90,7 +90,6 @@
         const session=await response.json();
         if(!session.canManage){setStatus('Konto nie ma uprawnienia Zarządzanie serwerem.','bad');return;}
         showConnectionStatus(session);
-        await loadLevels().catch(error=>$('levelNotice').textContent=error.message);
         await loadRecruitment();
       }catch(error){setStatus(error.message||'Nie można odświeżyć danych panelu.','bad');}
       finally{liveRefreshInProgress=false;}
@@ -139,6 +138,7 @@
         if(!(session.discordReady??session.botReady)){setStatus('Panel nie ma obecnie połączenia z serwerem Discord.','bad');return;}
         const economyResponse=await fetch('/api/economy/settings',{credentials:'same-origin'});if(economyResponse.ok){const economySettings=await economyResponse.json();for(const [key,value] of Object.entries(economySettings)){if($(key))$(key).value=value;}renderEconomyPreview();}
         await loadServerControl();await Promise.all([loadAutoChannels(),loadVoiceSupport(),loadModerationSettings(),loadVerificationPanel(),loadAutoMod()]);await loadStatistics().catch(error=>{$('statisticsUpdated').textContent=error.message;});setInterval(()=>loadStatistics().catch(()=>{}),60000);const featureResponse=await fetch('/api/features',{credentials:'same-origin'});if(featureResponse.ok){const featureData=await featureResponse.json();document.querySelectorAll('.automation-state').forEach((badge,index)=>{const enabled=Object.values(featureData.automations)[index];badge.textContent=enabled?'Włączone':'Wymaga konfiguracji';badge.classList.toggle('enabled',enabled);});}await loadTicketPanels();
+        await loadLevels().catch(error=>$('levelNotice').textContent=error.message);
         await loadRecruitment();
         $('dashboard').classList.remove('hidden');showConnectionStatus(session);setInterval(()=>{void refreshLiveData();},10000);
       }catch(error){setStatus(error instanceof TypeError?'Nie można połączyć się z API bota. Włącz bota na tym komputerze i otwórz panel pod adresem http://localhost:3000. GitHub Pages nie uruchamia API.':error.message,'bad');}
