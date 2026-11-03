@@ -344,7 +344,7 @@ export function createProSystem({ client, featureStore, cfg }) {
     const collected = [];
     let before;
     while (collected.length < 1000) {
-      const page = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) }).catch(() => null);
+      const page = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
       if (!page?.size) break;
       collected.push(...page.values());
       before = page.last()?.id;
@@ -365,18 +365,32 @@ export function createProSystem({ client, featureStore, cfg }) {
     if (closing.has(ticket.id)) return respond(interaction, 'Ten ticket jest właśnie zamykany.');
     closing.add(ticket.id);
     try {
+      await interaction.deferReply(ephemeral);
       const channel = interaction.channel;
       const owner = await interaction.guild.members.fetch(ticket.ownerId).catch(() => null);
-      if (owner) await channel.permissionOverwrites.edit(owner, { SendMessages: false }, { reason: `Zamknięcie ticketu przez ${interaction.user.tag}` });
-      if (!channel.name.startsWith('zamkniety-')) await channel.setName(`zamkniety-${channel.name}`.slice(0, 100));
-      const next = { ...ticket, status: 'closed', closedAt: new Date().toISOString(), closeReason: reason, closedBy: interaction.user.id };
+      const next = { ...ticket, status: 'closed', closedAt: new Date().toISOString(), closeReason: reason, closedBy: interaction.user.id, deleteOnClose: true };
       next.transcriptHtml = await transcript(next, channel);
       await featureStore.update(state => { state.tickets.items = state.tickets.items.map(item => item.id === ticket.id ? next : item); });
-      await channel.send({ content: `🔒 Ticket zamknięty przez <@${interaction.user.id}>. Powód: **${reason || 'nie podano'}**`, components: ticketControls(next), allowedMentions: { users: [interaction.user.id] } });
       await owner?.send({ content: `Ticket ${ticket.id} na serwerze **${interaction.guild.name}** został zamknięty. Powód: ${reason || 'nie podano'}.` }).catch(() => {});
       await writeLog(interaction.guild, '🔒 Zamknięto ticket', `ID: ${ticket.id}\nAutor: <@${ticket.ownerId}>\nZamknął: <@${interaction.user.id}>\nPowód: ${reason || 'nie podano'}`);
-      return respond(interaction, 'Ticket zamknięty. Transkrypt zapisano w danych bota.');
+      try {
+        await deleteClosedChannel(next, channel);
+      } catch (error) {
+        console.error(`Nie udało się usunąć kanału ticketu ${ticket.id}:`, error.message);
+        return interaction.editReply({ content: 'Ticket zamknięty i transkrypt zapisany, ale nie udało się usunąć kanału. Sprawdź uprawnienie bota Zarządzanie kanałami. Bot ponowi próbę automatycznie.' });
+      }
+      return interaction.editReply({ content: 'Ticket zamknięty. Transkrypt zapisano, a kanał usunięto.' });
     } finally { closing.delete(ticket.id); }
+  }
+
+  async function deleteClosedChannel(ticket, channel) {
+    // Persist the transcript and closed state before removing the Discord channel.
+    if (!ticket.transcriptHtml || ticket.status !== 'closed') throw new Error('Brak zapisanego transkryptu zamkniętego ticketu.');
+    if (channel) await channel.delete(`Zamknięcie ticketu ${ticket.id}`);
+    await featureStore.update(state => {
+      const current = state.tickets.items.find(item => item.id === ticket.id);
+      if (current) current.channelDeletedAt = new Date().toISOString();
+    });
   }
 
   async function command(interaction) {
@@ -1153,6 +1167,20 @@ export function createProSystem({ client, featureStore, cfg }) {
   async function maintenance() {
     const snapshot = featureStore.snapshot();
     const now = Date.now();
+    for (const ticket of snapshot.tickets.items.filter(item => item.status === 'closed' && item.deleteOnClose && !item.channelDeletedAt && item.transcriptHtml)) {
+      if (closing.has(ticket.id)) continue;
+      const guild = client.guilds.cache.get(ticket.guildId);
+      if (!guild) continue;
+      closing.add(ticket.id);
+      try {
+        const channel = await guild.channels.fetch(ticket.channelId).catch(error => {
+          if (error.code === 10003) return null;
+          throw error;
+        });
+        await deleteClosedChannel(ticket, channel);
+      } catch (error) { console.error(`Ponowne usuwanie kanału ticketu ${ticket.id}:`, error.message); }
+      finally { closing.delete(ticket.id); }
+    }
     for (const ticket of snapshot.tickets.items.filter(item => item.status === 'open' && item.guildId && item.channelId)) {
       const settings = snapshot.tickets.guildSettings?.[ticket.guildId] ?? {};
       const guild = client.guilds.cache.get(ticket.guildId);
@@ -1179,14 +1207,13 @@ export function createProSystem({ client, featureStore, cfg }) {
         const fresh = featureStore.snapshot().tickets.items.find(item=>item.id===ticket.id && item.status==='open');
         if (!fresh) continue;
         const owner = await guild.members.fetch(ticket.ownerId).catch(()=>null);
-        if (owner) await channel.permissionOverwrites.edit(owner,{SendMessages:false},{reason:`Automatyczne zamknięcie nieaktywnego ticketu ${ticket.id}`});
-        if (!channel.name.startsWith('zamkniety-')) await channel.setName(`zamkniety-${channel.name}`.slice(0,100)).catch(()=>{});
-        const next={...fresh,status:'closed',closedAt:new Date(now).toISOString(),closedBy:'system',closeReason:`Automatyczne zamknięcie po ${closeHours} h bezczynności`,transcriptHtml:await transcript(fresh,channel),events:[...(fresh.events??[]),{type:'auto-closed',at:new Date(now).toISOString()}]};
+        const next={...fresh,status:'closed',closedAt:new Date(now).toISOString(),closedBy:'system',closeReason:`Automatyczne zamknięcie po ${closeHours} h bezczynności`,deleteOnClose:true,events:[...(fresh.events??[]),{type:'auto-closed',at:new Date(now).toISOString()}]};
+        next.transcriptHtml = await transcript(next, channel);
         const changed=await featureStore.update(state=>{const current=state.tickets.items.find(item=>item.id===ticket.id);if(!current||current.status!=='open')return false;Object.assign(current,next);return true;});
         if (!changed) continue;
-        await channel.send({content:`🔒 Ticket zamknięto automatycznie po ${closeHours} h bezczynności.`,components:ticketControls(next),allowedMentions:{parse:[]}}).catch(()=>{});
         await owner?.send({content:`Ticket ${ticket.id} na serwerze **${guild.name}** został zamknięty automatycznie po ${closeHours} h bezczynności.`}).catch(()=>{});
         await writeLog(guild,'⏰ Automatycznie zamknięto ticket',`${ticket.id} · ${closeHours} h bezczynności`);
+        await deleteClosedChannel(next, channel);
       } catch(error) { console.error(`Automatyzacja ticketu ${ticket.id} nie powiodła się:`,error.message); }
       finally { closing.delete(ticket.id); }
     }
@@ -1236,5 +1263,13 @@ export function createProSystem({ client, featureStore, cfg }) {
     }
   }
 
-  return { command, button, modal, message, maintenance };
+  async function closeLegacy(interaction) {
+    await syncLegacyTickets(interaction.guild);
+    const ticket = ticketFor(interaction.channelId);
+    if (!ticket) return respond(interaction, 'Nie rozpoznaję kanału jako ticketu.');
+    if (interaction.user.id !== ticket.ownerId && !canHandleTicket(interaction, ticket)) return respond(interaction, 'Tylko autor ticketu lub obsługa może go zamknąć.');
+    return finishClose(interaction, ticket, 'Zamknięty przyciskiem.');
+  }
+
+  return { command, button, modal, message, maintenance, closeLegacy };
 }

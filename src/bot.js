@@ -548,6 +548,7 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     if (isPro) return await proSystem.command(interaction);
     if (isProInteraction) return interaction.isModalSubmit() ? await proSystem.modal(interaction) : await proSystem.button(interaction);
+    if (interaction.isButton() && interaction.customId === 'strefa:ticket:close') return await proSystem.closeLegacy(interaction);
     if (isFeature) return await featureHandlers.command(interaction);
     if (isFeatureButton) return await featureHandlers.button(interaction);
     if (!interaction.inGuild() || interaction.guildId !== cfg.guildId) {
