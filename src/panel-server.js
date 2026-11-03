@@ -3,6 +3,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withTimeout } from './async-operation.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -60,15 +61,24 @@ function hasManagePermission(permissions) {
   } catch { return false; }
 }
 
-export function startPanelServer({ client, getApplications, featureStore, discordMode = 'gateway' }) {
+export function startPanelServer({ client, getApplications, featureStore, discordMode = 'gateway', getWorkerStatus, refreshData, workerStatusTimeoutMs = 2000, refreshDataTimeoutMs = 2000 }) {
   if (!['gateway', 'rest'].includes(discordMode)) throw new Error('Nieznany tryb połączenia panelu z Discordem.');
-  // REST access lets the separate panel manage a server; it says nothing about
-  // the worker's Gateway connection. Only the bot process can report that here.
+  // The panel's REST access and the worker's Gateway connection are independent.
   const isDiscordAvailable = () => discordMode === 'rest' || client.isReady();
-  const connectionStatus = () => ({
-    botReady: discordMode === 'rest' ? null : client.isReady(),
-    discordReady: isDiscordAvailable(),
-  });
+  const connectionStatus = async () => {
+    if (discordMode === 'gateway') {
+      const ready = client.isReady();
+      return { botReady: ready, discordReady: ready, botStatus: ready ? 'online' : 'offline', botLastSeen: null };
+    }
+    let worker = { botReady: null, botStatus: 'unknown', botLastSeen: null };
+    if (getWorkerStatus) {
+      const unavailable = { botReady: null, botStatus: 'unavailable', botLastSeen: null };
+      try {
+        worker = await withTimeout(getWorkerStatus, workerStatusTimeoutMs) ?? unavailable;
+      } catch { worker = unavailable; }
+    }
+    return { ...worker, discordReady: isDiscordAvailable() };
+  };
   const { CLIENT_ID = '', CLIENT_SECRET = '', GUILD_ID = '', PANEL_BASE_URL = 'http://localhost:3000', PANEL_SESSION_SECRET = '', PANEL_HOST = '127.0.0.1' } = process.env;
   const panelPort = Number(process.env.PORT || process.env.PANEL_PORT || 3000);
   const baseUrl = PANEL_BASE_URL.replace(/\/+$/, '');
@@ -80,7 +90,7 @@ export function startPanelServer({ client, getApplications, featureStore, discor
     const route = requestUrl.pathname;
     try {
       if (req.method === 'GET' && route === '/health') {
-        return json(res, 200, { ok: true, ...connectionStatus(), panelConfigured: configReady });
+        return json(res, 200, { ok: true, ...await connectionStatus(), panelConfigured: configReady });
       }
 
       if (req.method === 'GET' && route === '/auth/discord') {
@@ -141,7 +151,11 @@ export function startPanelServer({ client, getApplications, featureStore, discor
         if (route === '/api/session') {
           if (!current?.value.user) return json(res, 401, { authenticated: false, configured: configReady });
           const guild = client.guilds.cache.get(GUILD_ID);
-          return json(res, 200, { authenticated: true, user: current.value.user, canManage: current.value.canManage, ...connectionStatus(), guildName: guild?.name || process.env.SERVER_DISPLAY_NAME || 'Strefa Gry i Rozrywki', guildIcon: guild?.iconURL({ size: 128 }) || null });
+          return json(res, 200, { authenticated: true, user: current.value.user, canManage: current.value.canManage, ...await connectionStatus(), guildName: guild?.name || process.env.SERVER_DISPLAY_NAME || 'Strefa Gry i Rozrywki', guildIcon: guild?.iconURL({ size: 128 }) || null });
+        }
+        if (current?.value.user && current.value.canManage && refreshData) {
+          try { await withTimeout(refreshData, refreshDataTimeoutMs); }
+          catch { return json(res, 503, { error: 'Nie można odświeżyć danych ze wspólnej bazy. Spróbuj ponownie za chwilę.' }); }
         }
         if (route === '/api/recruitment') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });

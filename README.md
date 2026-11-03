@@ -175,7 +175,13 @@ Workflow `.github/workflows/ci.yml` uruchamia `npm ci`, sprawdzenie składni, te
 
 ### Status procesu i diagnostyka
 
-Panel WWW (`npm run panel`) korzysta z REST i nie uruchamia bota. Jego `/health` potwierdza pracę panelu; `discordReady: true` oznacza dostęp panelu do Discorda, a `botReady: null` oznacza nieznany status osobnego workera. Panel uruchomiony wewnątrz bota podaje rzeczywiste `botReady` z połączenia Gateway. Po błędzie logowania worker zamyka HTTP, klienta Discord i bazę, a następnie kończy się kodem 1, zamiast pozostawać pozornie aktywnym procesem.
+Panel WWW (`npm run panel`) korzysta z REST i nie uruchamia drugiego połączenia Gateway. Przy starcie pobiera tożsamość bota, sprawdza jej zgodność z `CLIENT_ID` oraz wczytuje członkostwo i uprawnienia na serwerze. Zapobiega to błędom `client.user === null` przy odczycie kanałów i uprawnień.
+
+Worker zapisuje swój stan co 15 sekund w osobnym dokumencie `runtime:bot:<GUILD_ID>:<CLIENT_ID>` we wspólnej bazie PostgreSQL. Panel odczytuje go przez `/health` i `/api/session`; `botReady: true` z `botStatus: online` oznacza aktualne połączenie workera z serwerem. `offline` oznacza zapisane rozłączenie, a `stale` brak sygnału przez co najmniej 45 sekund. `unknown` oznacza brak sygnału lub wspólnej bazy; `unavailable` awarię odczytu; `configuration_mismatch` niezgodną tożsamość. Pole `botLastSeen` zawiera czas ostatniego sygnału. Samo `discordReady: true` potwierdza dostęp REST panelu, a nie stan workera. Odczyt stanu ma limit 2 sekund i nie blokuje zdrowia całego panelu przy awarii bazy.
+
+**Obie usługi muszą używać tej samej bazy `DATABASE_URL`, tego samego `CLIENT_ID` i `GUILD_ID` oraz tokenu tej samej aplikacji.** `render.yaml` łączy je z jedną bazą przez `fromDatabase`. Status nie wymaga otwarcia portu workera ani dodatkowego sekretu. Interfejs odświeża status i listę podań co 10 sekund, a panel pobiera aktualne dane przed autoryzowanymi operacjami. Istniejące dane i migracje pozostają zachowane; dokument stanu nie zawiera tokenów i nie zmienia danych rekrutacji.
+
+Po błędzie logowania worker zamyka HTTP, klienta Discord i bazę, a następnie kończy się kodem 1, zamiast pozostawać pozornie aktywnym procesem. Planowane zamknięcie zapisuje `offline`; zakończona instancja nie może oznaczyć nowego procesu jako wyłączony. Zapisy stanu nie blokują inicjalizacji ani zamykania dłużej niż 2 sekundy. Jeżeli odświeżenie danych w bazie nie odpowie w tym czasie, chronione API zwraca kontrolowane 503 zamiast zawieszać żądanie.
 
 Po zalogowaniu bot tworzy prywatny kanał `status-bota` i wysyła **BOT ONLINE**. Kanał jest przeznaczony dla Administratorów, bota i opcjonalnej roli `STAFF_ROLE_ID`. Bot potrzebuje uprawnienia **Zarządzanie kanałami**, aby go utworzyć. Istniejący prywatny kanał o tej nazwie zostanie wykorzystany ponownie. Można też ustawić `BOT_STATUS_CHANNEL_ID` na ID własnego kanału tekstowego na tym samym serwerze; wtedy obowiązują uprawnienia wybranego kanału.
 

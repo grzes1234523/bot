@@ -13,6 +13,8 @@ import { closeDatabase, databaseEnabled } from './database.js';
 import { KeyedLock } from './lock.js';
 import { FormSessions } from './form-sessions.js';
 import { BotStatusReporter, sanitizeDiagnostic } from './status-reporter.js';
+import { WorkerStatus } from './worker-status.js';
+import { withTimeout } from './async-operation.js';
 import { QUESTION_STAGES, validateStepAnswers } from './questions.js';
 import {
   labels, panelEmbed, panelButtons, reviewEmbeds, reviewButtons,
@@ -37,6 +39,7 @@ const client = new Client({ intents: [
   GatewayIntentBits.GuildModeration,
 ] });
 const statusReporter = new BotStatusReporter({ client, cfg });
+const workerStatus = new WorkerStatus(cfg);
 const featureHandlers = createFeatureHandlers({ client, cfg, applicationStore: store, featureStore });
 const proSystem = createProSystem({ client, featureStore, cfg });
 const panelServer = startPanelServer({ client, getApplications: () => store.list(), featureStore });
@@ -49,6 +52,12 @@ const appId = value => String(value ?? '').trim().toUpperCase();
 function reportFailure(context, error) {
   console.error(`${context}:`, sanitizeDiagnostic(error, [cfg.token]));
   void statusReporter.reportError(context, error);
+}
+
+function publishWorkerStatus(ready = client.isReady() && client.guilds.cache.has(cfg.guildId)) {
+  if (shutdownPromise) return Promise.resolve(false);
+  return withTimeout(() => workerStatus.publish({ ready, botId: client.user?.id ?? null }), 2000, 'Przekroczono czas zapisu stanu połączenia bota.')
+    .catch(error => { reportFailure('Nie udało się zapisać stanu połączenia bota', error); return false; });
 }
 
 function staffAllowed(interaction) {
@@ -501,6 +510,11 @@ async function recoverUnsent(guild) {
 
 client.once(Events.ClientReady, async ready => {
   console.log(`✅ Zalogowano jako ${ready.user.tag} | rekrutacja 3.0`);
+  await publishWorkerStatus();
+  if (shutdownPromise) return;
+  const statusTimer = setInterval(() => { void publishWorkerStatus(); }, 15_000);
+  shutdownTimers.add(statusTimer);
+  statusTimer.unref?.();
   await statusReporter.online();
   const guild = await ready.guilds.fetch(cfg.guildId).catch(() => null);
   if (!guild) { console.error('Bot nie ma dostępu do GUILD_ID.'); return; }
@@ -550,6 +564,9 @@ client.on(Events.InteractionCreate, async interaction => {
 
 client.on(Events.Error, error => reportFailure('Błąd klienta Discord', error));
 client.on(Events.ShardError, error => reportFailure('Błąd połączenia z Discordem', error));
+client.on(Events.ShardDisconnect, () => { void publishWorkerStatus(false); });
+client.on(Events.ShardReconnecting, () => { void publishWorkerStatus(false); });
+client.on(Events.ShardResume, () => { void publishWorkerStatus(); });
 client.on(Events.VoiceStateUpdate, (oldState, newState) => featureHandlers.voiceState(oldState, newState));
 client.on(Events.MessageDelete, message => featureHandlers.messageDeleted(message));
 client.on(Events.MessageCreate, message => proSystem.message(message).catch(error => reportFailure('Nie udało się zapisać aktywności ticketu', error)));
@@ -561,6 +578,8 @@ async function shutdown() {
   if (shutdownPromise) return shutdownPromise;
   shutdownPromise = (async () => {
     for (const timer of shutdownTimers) clearInterval(timer);
+    await withTimeout(() => workerStatus.stop(), 2000, 'Przekroczono czas zapisu wyłączenia bota.')
+      .catch(error => reportFailure('Nie udało się zapisać wyłączenia bota', error));
     await statusReporter.offline();
     const results = await Promise.allSettled([
       new Promise((resolve, reject) => panelServer.close(error => {

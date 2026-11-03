@@ -2,13 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { startPanelServer } from '../src/panel-server.js';
+import { WorkerStatus } from '../src/worker-status.js';
 
+const clientId = '123456789012345678';
 const guildId = '123456789012345679';
 const localFetch = globalThis.fetch;
 
-async function fixture(t, { mode, ready = false, permissions = '32', guildPresent = true } = {}) {
+async function fixture(t, {
+  mode, ready = false, permissions = '32', guildPresent = true,
+  getApplications = () => [{ id: 'A1', status: 'pending', createdAt: '2026-01-01T12:00:00Z' }],
+  featureStore = { snapshot: () => ({}) },
+  getWorkerStatus, refreshData, workerStatusTimeoutMs, refreshDataTimeoutMs,
+} = {}) {
   const env = {
-    CLIENT_ID: '123456789012345678',
+    CLIENT_ID: clientId,
     CLIENT_SECRET: 'test-secret',
     GUILD_ID: guildId,
     PANEL_SESSION_SECRET: 'test-session-secret-with-at-least-32-characters',
@@ -25,8 +32,12 @@ async function fixture(t, { mode, ready = false, permissions = '32', guildPresen
   };
   const server = startPanelServer({
     client,
-    getApplications: () => [{ id: 'A1', status: 'pending', createdAt: '2026-01-01T12:00:00Z' }],
-    featureStore: { snapshot: () => ({}) },
+    getApplications,
+    featureStore,
+    getWorkerStatus,
+    refreshData,
+    workerStatusTimeoutMs,
+    refreshDataTimeoutMs,
     ...(mode === undefined ? {} : { discordMode: mode }),
   });
   t.after(async () => {
@@ -78,10 +89,11 @@ for (const ready of [false, true]) {
   });
 }
 
-test('panel REST udostępnia rekrutację, ale nie potwierdza uruchomienia workera', async t => {
+test('panel REST bez adaptera statusu udostępnia rekrutację ze stanem workera unknown', async t => {
   const panel = await fixture(t, { mode: 'rest' });
   const health = await (await panel.request('/health')).json();
   assert.equal(health.botReady, null);
+  assert.equal(health.botStatus, 'unknown');
   assert.equal(health.discordReady, true);
   assert.equal(panel.client.isReady(), false, 'panel nie nadpisuje stanu klienta Gateway');
   const cookie = await panel.authenticate();
@@ -89,6 +101,7 @@ test('panel REST udostępnia rekrutację, ale nie potwierdza uruchomienia worker
   assert.equal(session.authenticated, true);
   assert.equal(session.canManage, true);
   assert.equal(session.botReady, null);
+  assert.equal(session.botStatus, 'unknown');
   assert.equal(session.discordReady, true);
   const response = await panel.request('/api/recruitment', cookie);
   assert.equal(response.status, 200);
@@ -123,3 +136,182 @@ test('panel REST nie omija sprawdzenia dostępu do skonfigurowanego serwera', as
   const cookie = await panel.authenticate();
   assert.equal((await panel.request('/api/recruitment', cookie)).status, 503);
 });
+
+function sharedWorkerStorage() {
+  let now = Date.parse('2026-01-01T12:00:00Z');
+  const documents = new Map();
+  let queue = Promise.resolve();
+  const storage = {
+    async databaseEnabled() { return true; },
+    async refreshDocument(key) { return structuredClone(documents.get(key) ?? null); },
+    updateDocument(key, initial, change) {
+      const task = queue.then(async () => {
+        const state = structuredClone(documents.get(key) ?? initial);
+        const result = await change(state);
+        documents.set(key, structuredClone(state));
+        return { state, result };
+      });
+      queue = task.catch(() => {});
+      return task;
+    },
+  };
+  return {
+    instance: (scope = {}) => new WorkerStatus({ guildId, clientId, storage, now: () => now, ...scope }),
+    advance: milliseconds => { now += milliseconds; },
+    lastSeen: () => new Date(now).toISOString(),
+  };
+}
+
+test('panel HTTP odczytuje online, offline i wygasły heartbeat osobnego workera bez restartu', async t => {
+  const shared = sharedWorkerStorage();
+  const writer = shared.instance();
+  const reader = shared.instance();
+  const panel = await fixture(t, { mode: 'rest', getWorkerStatus: () => reader.read() });
+  const cookie = await panel.authenticate();
+  await writer.publish({ ready: true, botId: clientId });
+  const health = await (await panel.request('/health')).json();
+  assert.equal(health.botReady, true);
+  assert.equal(health.botStatus, 'online');
+  assert.equal(health.botLastSeen, shared.lastSeen());
+  assert.equal(health.discordReady, true);
+  let session = await (await panel.request('/api/session', cookie)).json();
+  assert.equal(session.botReady, true);
+  assert.equal(session.botStatus, 'online');
+
+  shared.advance(1000);
+  await writer.publish({ ready: false, botId: clientId });
+  session = await (await panel.request('/api/session', cookie)).json();
+  assert.equal(session.botReady, false);
+  assert.equal(session.botStatus, 'offline');
+  assert.equal(session.botLastSeen, shared.lastSeen());
+  assert.equal(session.discordReady, true, 'offline workera nie wyłącza niezależnego REST');
+  assert.equal((await panel.request('/api/recruitment', cookie)).status, 200);
+
+  await writer.publish({ ready: true, botId: clientId });
+  const lastSeen = shared.lastSeen();
+  shared.advance(45_001);
+  session = await (await panel.request('/api/session', cookie)).json();
+  assert.equal(session.botReady, false);
+  assert.equal(session.botStatus, 'stale');
+  assert.equal(session.botLastSeen, lastSeen);
+  assert.equal(session.discordReady, true);
+  await writer.publish({ ready: true, botId: clientId });
+  session = await (await panel.request('/api/session', cookie)).json();
+  assert.equal(session.botReady, true);
+  assert.equal(session.botStatus, 'online');
+});
+
+for (const scope of [{ guildId: 'another-guild' }, { clientId: 'another-client' }]) {
+  test(`panel nie przypisuje sobie heartbeatu innego ${scope.guildId ? 'serwera' : 'bota'}`, async t => {
+    const shared = sharedWorkerStorage();
+    await shared.instance().publish({ ready: true, botId: clientId });
+    const reader = shared.instance(scope);
+    const panel = await fixture(t, { mode: 'rest', getWorkerStatus: () => reader.read() });
+    const cookie = await panel.authenticate();
+    const session = await (await panel.request('/api/session', cookie)).json();
+    assert.equal(session.botReady, null);
+    assert.equal(session.botStatus, 'unknown');
+    assert.equal(session.botLastSeen, null);
+    assert.equal(session.discordReady, true);
+  });
+}
+
+for (const [description, getWorkerStatus] of [
+  ['błąd odczytu', async () => { throw new Error('database-private-test-secret'); }],
+  ['brak odpowiedzi', () => new Promise(() => {})],
+]) {
+  test(`niedostępny status workera (${description}) nie blokuje panelu HTTP`, async t => {
+    const panel = await fixture(t, { mode: 'rest', getWorkerStatus, workerStatusTimeoutMs: 20 });
+    const cookie = await panel.authenticate();
+    for (const [route, sessionCookie] of [['/health', undefined], ['/api/session', cookie]]) {
+      const started = performance.now();
+      const response = await panel.request(route, sessionCookie);
+      assert.ok(performance.now() - started < 1000, 'odczyt statusu ma ograniczony czas oczekiwania');
+      assert.equal(response.status, 200);
+      const status = await response.json();
+      assert.equal(status.botReady, null);
+      assert.equal(status.botStatus, 'unavailable');
+      assert.equal(status.botLastSeen, null);
+      assert.equal(status.discordReady, true);
+      assert.ok(!JSON.stringify(status).includes('database-private-test-secret'));
+    }
+  });
+}
+
+test('autoryzowane odczyty odświeżają podania i ustawienia przed utworzeniem odpowiedzi', async t => {
+  let storedApplications = [{ id: 'A1', status: 'pending', createdAt: '2026-01-01T12:00:00Z' }];
+  let storedFeatures = {};
+  let visibleApplications = [];
+  let visibleFeatures = {};
+  let refreshes = 0;
+  const panel = await fixture(t, {
+    mode: 'rest',
+    getApplications: () => visibleApplications,
+    featureStore: { snapshot: () => visibleFeatures },
+    refreshData: async () => {
+      await Promise.resolve();
+      refreshes += 1;
+      visibleApplications = structuredClone(storedApplications);
+      visibleFeatures = structuredClone(storedFeatures);
+    },
+  });
+  const cookie = await panel.authenticate();
+  assert.equal(refreshes, 0, 'samo logowanie nie ładuje chronionych danych');
+  let response = await panel.request('/api/recruitment', cookie);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).counts.pending, 1);
+  assert.equal(refreshes, 1);
+
+  storedApplications = [{ id: 'A2', status: 'accepted', createdAt: '2026-01-01T12:01:00Z' }];
+  storedFeatures = { autoChannels: { joinChannelId: 'voice-channel' }, verification: { roleId: 'role' } };
+  response = await panel.request('/api/recruitment', cookie);
+  const recruitment = await response.json();
+  assert.equal(recruitment.counts.pending, 0);
+  assert.equal(recruitment.counts.accepted, 1);
+  assert.equal(recruitment.applications[0].id, 'A2');
+  response = await panel.request('/api/features', cookie);
+  assert.equal(response.status, 200);
+  const features = await response.json();
+  assert.equal(features.automations.autoChannels, true);
+  assert.equal(features.automations.verification, true);
+  assert.equal(refreshes, 3);
+});
+
+for (const authenticated of [false, true]) {
+  test(`odświeżanie danych nie następuje dla ${authenticated ? 'konta bez uprawnień' : 'anonimowego żądania'}`, async t => {
+    let refreshes = 0;
+    const panel = await fixture(t, {
+      mode: 'rest', permissions: '0', refreshData: async () => { refreshes += 1; },
+    });
+    const cookie = authenticated ? await panel.authenticate() : undefined;
+    for (const route of ['/api/recruitment', '/api/features']) {
+      const response = await panel.request(route, cookie);
+      assert.equal(response.status, authenticated ? 403 : 401);
+    }
+    assert.equal(refreshes, 0);
+  });
+}
+
+for (const [description, refreshData] of [
+  ['błąd bazy', async () => { throw new Error('postgres://private-user:private-db-password@database/bot'); }],
+  ['zawieszone zapytanie', () => new Promise(() => {})],
+]) {
+  test(`odświeżanie danych: ${description} daje ograniczone czasowo 503 bez ujawniania szczegółów`, async t => {
+    const panel = await fixture(t, { mode: 'rest', refreshData, refreshDataTimeoutMs: 20 });
+    const cookie = await panel.authenticate();
+    for (const route of ['/api/recruitment', '/api/features']) {
+      const started = performance.now();
+      const response = await panel.request(route, cookie);
+      assert.ok(performance.now() - started < 1000, 'odświeżanie nie blokuje żądania bez końca');
+      assert.equal(response.status, 503);
+      const body = await response.json();
+      assert.match(body.error, /wspólnej bazy/);
+      assert.ok(!JSON.stringify(body).includes('private-db-password'));
+      assert.ok(!JSON.stringify(body).includes('postgres://'));
+      assert.equal(body.applications, undefined, 'nie zwraca starych danych po nieudanym odświeżeniu');
+    }
+    const health = await panel.request('/health');
+    assert.equal(health.status, 200, 'awaria danych nie zmienia żywotności HTTP');
+    assert.equal((await health.json()).ok, true);
+  });
+}

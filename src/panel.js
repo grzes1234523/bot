@@ -1,6 +1,7 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits } from 'discord.js';
 import { readConfig } from './config.js';
+import { connectRestClient } from './rest-client.js';
+import { WorkerStatus } from './worker-status.js';
 import { startPanelServer } from './panel-server.js';
 import { ApplicationStore } from './store.js';
 import { FeatureStore } from './feature-store.js';
@@ -14,11 +15,13 @@ const featureStore = new FeatureStore(path.join(dataDirectory, 'features.json'))
 await Promise.all([applications.init(), featureStore.init()]);
 
 // Panel WWW korzysta z Discord REST, ale nie otwiera drugiego połączenia Gateway.
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
-client.rest.setToken(cfg.token);
-const guild = await client.guilds.fetch(cfg.guildId);
-await Promise.all([guild.channels.fetch(), guild.roles.fetch()]);
-const server = startPanelServer({ client, getApplications: () => applications.list(), featureStore, discordMode: 'rest' });
+const client = await connectRestClient(cfg);
+const workerStatus = new WorkerStatus(cfg);
+const server = startPanelServer({
+  client, getApplications: () => applications.list(), featureStore, discordMode: 'rest',
+  getWorkerStatus: () => workerStatus.read(),
+  refreshData: () => Promise.all([applications.refresh(), featureStore.refresh()]),
+});
 let shutdownPromise;
 
 async function shutdown() {
