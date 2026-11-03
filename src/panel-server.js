@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withTimeout } from './async-operation.js';
 import { levelSettings, levelRanking, validateLevelSettings } from './levels.js';
+import { createLevelChannel } from './level-channel.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -64,6 +65,7 @@ function hasManagePermission(permissions) {
 
 export function startPanelServer({ client, getApplications, featureStore, discordMode = 'gateway', getWorkerStatus, refreshData, workerStatusTimeoutMs = 2000, refreshDataTimeoutMs = 2000 }) {
   if (!['gateway', 'rest'].includes(discordMode)) throw new Error('Nieznany tryb połączenia panelu z Discordem.');
+  const creatingLevelChannel = new Set();
   // The panel's REST access and the worker's Gateway connection are independent.
   const isDiscordAvailable = () => discordMode === 'rest' || client.isReady();
   const connectionStatus = async () => {
@@ -158,11 +160,23 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           try { await withTimeout(refreshData, refreshDataTimeoutMs); }
           catch { return json(res, 503, { error: 'Nie można odświeżyć danych ze wspólnej bazy. Spróbuj ponownie za chwilę.' }); }
         }
-        if (route === '/api/levels') {
+        if (route === '/api/levels' || route === '/api/levels/channel') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Zarządzanie serwerem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!isDiscordAvailable() || !guild) return json(res, 503, { error: 'Brak połączenia z serwerem Discord.' });
+          if (route === '/api/levels/channel') {
+            if (req.method !== 'POST') return json(res, 405, { error: 'Użyj przycisku Utwórz kanał w panelu.' });
+            if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
+            if (creatingLevelChannel.has(guild.id)) return json(res, 409, { error: 'Kanał jest właśnie tworzony. Poczekaj chwilę.' });
+            creatingLevelChannel.add(guild.id);
+            try {
+              const body = await readJson(req);
+              const result = await createLevelChannel({ guild, featureStore, categoryId: body?.categoryId });
+              return json(res, 200, result);
+            } catch (error) { console.error('Tworzenie kanału poziomów:', error.message); return json(res, 400, { error: 'Nie udało się utworzyć kanału. Sprawdź kategorię oraz uprawnienia bota: Zarządzanie kanałami, Wyświetlanie kanałów i Wysyłanie wiadomości.' }); }
+            finally { creatingLevelChannel.delete(guild.id); }
+          }
           if (req.method === 'POST') {
             if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
             let settings;
@@ -190,7 +204,7 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           const ranking = levelRanking(state, GUILD_ID);
           const roles = await guild.roles.fetch();
           const channels = await guild.channels.fetch();
-          return json(res, 200, { settings: levelSettings(state, GUILD_ID), ranking: ranking.slice(0, 100), totals: { users: ranking.length, xp: ranking.reduce((sum, user) => sum + user.xp, 0), voiceMinutes: ranking.reduce((sum, user) => sum + user.voiceMinutes, 0) }, roles: roles.filter(role => role && role.id !== guild.id && !role.managed && role.editable).map(role => ({ id: role.id, name: role.name })), channels: channels.filter(channel => channel && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)).map(channel => ({ id: channel.id, name: channel.name })) });
+          return json(res, 200, { settings: levelSettings(state, GUILD_ID), ranking: ranking.slice(0, 100), totals: { users: ranking.length, xp: ranking.reduce((sum, user) => sum + user.xp, 0), voiceMinutes: ranking.reduce((sum, user) => sum + user.voiceMinutes, 0) }, roles: roles.filter(role => role && role.id !== guild.id && !role.managed && role.editable).map(role => ({ id: role.id, name: role.name })), categories: channels.filter(channel => channel?.type === ChannelType.GuildCategory).map(channel => ({ id: channel.id, name: channel.name })), channels: channels.filter(channel => channel && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)).map(channel => ({ id: channel.id, name: channel.name })) });
         }
         if (route === '/api/recruitment') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
