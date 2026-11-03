@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withTimeout } from './async-operation.js';
+import { levelSettings, levelRanking, validateLevelSettings } from './levels.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -156,6 +157,35 @@ export function startPanelServer({ client, getApplications, featureStore, discor
         if (current?.value.user && current.value.canManage && refreshData) {
           try { await withTimeout(refreshData, refreshDataTimeoutMs); }
           catch { return json(res, 503, { error: 'Nie można odświeżyć danych ze wspólnej bazy. Spróbuj ponownie za chwilę.' }); }
+        }
+        if (route === '/api/levels') {
+          if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
+          if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Zarządzanie serwerem.' });
+          const guild = client.guilds.cache.get(GUILD_ID);
+          if (!isDiscordAvailable() || !guild) return json(res, 503, { error: 'Brak połączenia z serwerem Discord.' });
+          if (req.method === 'POST') {
+            if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
+            let settings;
+            try { settings = validateLevelSettings(await readJson(req)); }
+            catch (error) { return json(res, 400, { error: error.message }); }
+            const roles = await guild.roles.fetch();
+            const me = guild.members.me ?? await guild.members.fetchMe();
+            for (const reward of settings.rewards) {
+              const role = roles.get(reward.roleId);
+              if (!role || role.id === guild.id || role.managed || !role.editable || !me.permissions.has(PermissionFlagsBits.ManageRoles)) return json(res, 400, { error: 'Bot musi mieć Zarządzanie rolami, a nagrody muszą być poniżej jego najwyższej roli.' });
+            }
+            await featureStore.update(state => {
+              state.levels ??= { guilds: {} };
+              state.levels.guilds ??= {};
+              const levels = state.levels.guilds[GUILD_ID] ??= { users: {} };
+              levels.settings = settings;
+            });
+            return json(res, 200, { ok: true });
+          }
+          const state = featureStore.snapshot();
+          const ranking = levelRanking(state, GUILD_ID);
+          const roles = await guild.roles.fetch();
+          return json(res, 200, { settings: levelSettings(state, GUILD_ID), ranking: ranking.slice(0, 100), totals: { users: ranking.length, xp: ranking.reduce((sum, user) => sum + user.xp, 0), voiceMinutes: ranking.reduce((sum, user) => sum + user.voiceMinutes, 0) }, roles: roles.filter(role => role && role.id !== guild.id && !role.managed && role.editable).map(role => ({ id: role.id, name: role.name })) });
         }
         if (route === '/api/recruitment') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });

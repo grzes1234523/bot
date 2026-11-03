@@ -89,6 +89,26 @@ for (const ready of [false, true]) {
   });
 }
 
+test('panel poziomów wymaga sesji i uprawnień zarządzania serwerem', async t => {
+  const panel = await fixture(t, { mode: 'rest', permissions: '0' });
+  assert.equal((await panel.request('/api/levels')).status, 401);
+  const cookie = await panel.authenticate();
+  assert.equal((await panel.request('/api/levels', cookie)).status, 403);
+});
+
+test('panel poziomów odczytuje ranking ze wspólnych danych bota', async t => {
+  const panel = await fixture(t, { mode: 'rest', featureStore: { snapshot: () => ({ levels: { guilds: { [guildId]: { users: { user: { xp: 400, messageCount: 10, voiceMinutes: 50 } } } } } }) } });
+  panel.client.guilds.cache.get(guildId).roles = { fetch: async () => new MapWithFilter() };
+  class MapWithFilter extends Map { filter() { return { map: () => [] }; } }
+  const cookie = await panel.authenticate();
+  const response = await panel.request('/api/levels', cookie);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  assert.equal(result.ranking[0].level, 2);
+  assert.equal(result.totals.xp, 400);
+  assert.equal(result.settings.voiceEnabled, true);
+});
+
 test('panel REST bez adaptera statusu udostępnia rekrutację ze stanem workera unknown', async t => {
   const panel = await fixture(t, { mode: 'rest' });
   const health = await (await panel.request('/health')).json();

@@ -1,5 +1,6 @@
 import { SlashCommandBuilder } from 'discord.js';
 import { featureCommands } from './features.js';
+import { levelCommands } from './levels.js';
 
 const applicationId = command => command.addStringOption(opt =>
   opt.setName('id').setDescription('ID podania, np. A3D4F501').setRequired(true));
@@ -41,4 +42,4 @@ const recruitmentCommands = [
   new SlashCommandBuilder().setName('rekrutacja-pomoc').setDescription('Pokazuje instrukcję składania podań.'),
 ];
 
-export const commands = [...recruitmentCommands, ...featureCommands];
+export const commands = [...recruitmentCommands, ...featureCommands, ...levelCommands];

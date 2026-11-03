@@ -15,6 +15,7 @@ import { FormSessions } from './form-sessions.js';
 import { BotStatusReporter, sanitizeDiagnostic } from './status-reporter.js';
 import { WorkerStatus } from './worker-status.js';
 import { withTimeout } from './async-operation.js';
+import { createLevelSystem, levelCommands } from './levels.js';
 import { QUESTION_STAGES, validateStepAnswers } from './questions.js';
 import {
   labels, panelEmbed, panelButtons, reviewEmbeds, reviewButtons,
@@ -42,6 +43,7 @@ const statusReporter = new BotStatusReporter({ client, cfg });
 const workerStatus = new WorkerStatus(cfg);
 const featureHandlers = createFeatureHandlers({ client, cfg, applicationStore: store, featureStore });
 const proSystem = createProSystem({ client, featureStore, cfg });
+const levelSystem = createLevelSystem({ client, featureStore, guildId: cfg.guildId });
 const panelServer = startPanelServer({ client, getApplications: () => store.list(), featureStore });
 const shutdownTimers = new Set();
 let shutdownPromise;
@@ -518,6 +520,11 @@ client.once(Events.ClientReady, async ready => {
   await statusReporter.online();
   const guild = await ready.guilds.fetch(cfg.guildId).catch(() => null);
   if (!guild) { console.error('Bot nie ma dostępu do GUILD_ID.'); return; }
+  for (const command of levelCommands) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
+  const levelTimer = setInterval(() => levelSystem.tick().catch(error => reportFailure('Błąd XP za rozmowy', error)), 15000);
+  shutdownTimers.add(levelTimer);
+  levelTimer.unref?.();
+  await levelSystem.tick();
   await recoverUnsent(guild);
   const refreshStats = () => featureHandlers.refreshStatisticsChannels(guild)
     .catch(error => reportFailure('Nie udało się odświeżyć liczników serwera', error));
@@ -538,6 +545,11 @@ client.once(Events.ClientReady, async ready => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (interaction.isChatInputCommand() && levelCommands.some(command => command.name === interaction.commandName)) {
+    try { await levelSystem.command(interaction); }
+    catch (error) { reportFailure('Błąd komendy poziomów', error); if (!interaction.replied && !interaction.deferred) await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral }).catch(() => {}); }
+    return;
+  }
   const isFeature = interaction.isChatInputCommand() && isFeatureCommand(interaction.commandName);
   const isFeatureButton = interaction.isButton() && interaction.customId.startsWith('strefa:');
   const isPro = interaction.isChatInputCommand() && isProCommand(interaction.commandName);
@@ -569,6 +581,8 @@ client.on(Events.ShardDisconnect, () => { void publishWorkerStatus(false); });
 client.on(Events.ShardReconnecting, () => { void publishWorkerStatus(false); });
 client.on(Events.ShardResume, () => { void publishWorkerStatus(); });
 client.on(Events.VoiceStateUpdate, (oldState, newState) => featureHandlers.voiceState(oldState, newState));
+client.on(Events.VoiceStateUpdate, (oldState, newState) => levelSystem.voiceState(oldState, newState));
+client.on(Events.MessageCreate, message => levelSystem.message(message).catch(error => reportFailure('Błąd XP za wiadomość', error)));
 client.on(Events.MessageDelete, message => featureHandlers.messageDeleted(message));
 client.on(Events.MessageCreate, message => proSystem.message(message).catch(error => reportFailure('Nie udało się zapisać aktywności ticketu', error)));
 client.on(Events.ChannelCreate, channel => featureHandlers.channelChanged(channel, true));

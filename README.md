@@ -214,3 +214,10 @@ Projekt udostępnia panel pod `http://localhost:3000` i odczytuje statystyki z t
 3. Uruchom bot ponownie (`start-windows.bat` albo `npm start`), następnie otwórz `http://localhost:3000` i zaloguj się kontem z uprawnieniem Administrator lub Zarządzanie serwerem.
 
 Panel pokazuje liczniki i listę ostatnich podań bez odpowiedzi kandydatów; decyzje nadal obsługują komendy bota. `localhost` działa tylko na komputerze, na którym działa bot. Publiczny link wymaga oddzielnego hostingu albo tunelu HTTPS.
+
+
+## Poziomy aktywności
+
+Moduł Poziomy przyznaje domyślnie 15 XP za wiadomość (raz na 60 sekund) i 5 XP za pełną minutę rozmowy. Rozmowa wymaga co najmniej dwóch aktywnych osób; boty, AFK, wyciszenie i ogłuszenie są pomijane. Poziom wyznacza próg `100 × poziom²`. Czas offline nie jest doliczany.
+
+Komendy `/level [uzytkownik]`, `/ranking` i administracyjna `/poziomy-ustaw wlaczone` rejestrują się przy uruchomieniu bota. Panel `#module-poziomy` pozwala włączać źródła XP, zmieniać tempo oraz definiować maksymalnie 20 ról nagród. Bot wymaga Zarządzania rolami i wyższej roli niż nagroda. Role otrzymuje się przy następnej nagrodzie XP; wyłączenie modułu zachowuje postęp. Dane są przechowywane we wspólnym dokumencie features PostgreSQL, oddzielnie dla serwera.

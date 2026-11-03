@@ -3,6 +3,7 @@ import path from 'node:path';
 import { databaseEnabled, loadDocument, refreshDocument, updateDocument } from './database.js';
 
 const initialState = () => ({
+  levels: { guilds: {} },
   economy: {},
   economyConfig: { currencySymbol: 'StrefaCoins', initialBank: 100, initialWallet: 100, dailyReward: 100, workMin: 15, workMax: 60, thousandsSeparator: 'space', currencyPosition: 'right' },
   warnings: {},
@@ -47,6 +48,7 @@ export class FeatureStore {
   #normalize(parsed) {
     const initial = initialState();
     const state = { ...initial, ...parsed };
+    state.levels = { guilds: {}, ...(state.levels ?? {}) };
     state.economy ??= {};
     state.economyConfig = { ...initial.economyConfig, ...(state.economyConfig ?? {}) };
     state.warnings ??= {};
