@@ -605,6 +605,8 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => levelSystem.voiceStat
 client.on(Events.MessageCreate, message => levelSystem.message(message).catch(error => reportFailure('Błąd XP za wiadomość', error)));
 client.on(Events.GuildMemberAdd, member => welcomeSystem.memberJoined(member).catch(error => reportFailure('Nie udało się wysłać powitania', error)));
 client.on(Events.GuildMemberRemove, member => farewellSystem.memberLeft(member).catch(error => reportFailure('Nie udało się wysłać pożegnania', error)));
+client.on(Events.GuildMemberAdd, member => featureHandlers.memberChanged(member, true).catch(error => reportFailure('Błąd logu dołączenia', error)));
+client.on(Events.GuildMemberRemove, member => featureHandlers.memberChanged(member, false).catch(error => reportFailure('Błąd logu odejścia', error)));
 client.on(Events.MessageDelete, message => featureHandlers.messageDeleted(message));
 client.on(Events.MessageCreate, message => proSystem.message(message).catch(error => reportFailure('Nie udało się zapisać aktywności ticketu', error)));
 client.on(Events.ChannelCreate, channel => featureHandlers.channelChanged(channel, true));

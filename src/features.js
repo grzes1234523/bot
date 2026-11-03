@@ -13,6 +13,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 
+import { logSettings } from './log-settings.js';
 const command = name => new SlashCommandBuilder().setName(name);
 const adminCommand = name => command(name);
 
@@ -158,15 +159,19 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
     if (!interaction.deferred && !interaction.replied) await interaction.deferReply(ephemeral);
   }
 
-  async function log(guild, title, description, color = 0x5865f2) {
-    const id = featureStore.snapshot().logChannelId || cfg.logChannelId;
+  async function log(guild, title, description, color = 0x5865f2, event = 'moderation') {
+    const state = featureStore.snapshot(), settings = logSettings(state);
+    if (!guild || guild.id !== cfg.guildId || !settings.enabled || !settings.events[event]) return;
+    const id = state.logChannelId || cfg.logChannelId;
     if (!id || !guild) return;
     const channel = await guild.channels.fetch(id).catch(() => null);
     if (!channel?.isTextBased() || typeof channel.send !== 'function') return;
-    await channel.send({
+    try { await channel.send({
       embeds: [new EmbedBuilder().setColor(color).setTitle(title).setDescription(description.slice(0, 3900)).setTimestamp()],
       allowedMentions: { parse: [] },
-    }).catch(error => console.warn('Nie udało się zapisać logu modułu:', error.message));
+    });
+    await featureStore.update(data => { data.botLogs = [...(data.botLogs ?? []), { at: new Date().toISOString(), guildId: guild.id, title, description: description.slice(0,3900), event, channelId: id }].slice(-200); });
+    } catch(error) { console.warn('Nie udało się zapisać logu modułu:', error.message); }
   }
 
   function queueVoiceLog(guild, userId, event, flush = false) {
@@ -176,7 +181,7 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
     if (entry.timer) clearTimeout(entry.timer);
     const send = () => {
       pendingVoiceLogs.delete(userId);
-      void log(entry.guild, '🎙️ Aktywność głosowa', `Użytkownik: <@${userId}>\n${entry.events.join('\n')}`);
+      void log(entry.guild, '🎙️ Aktywność głosowa', `Użytkownik: <@${userId}>\n${entry.events.join('\n')}`, 0x5865f2, 'voice');
     };
     if (flush) return send();
     entry.timer = setTimeout(send, 900);
@@ -495,7 +500,7 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
       const channel = interaction.options.getChannel('kanal', true);
       const permissions = channel.permissionsFor(interaction.guild.members.me ?? await interaction.guild.members.fetchMe());
       if (!permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) return reply(interaction, 'Bot potrzebuje na tym kanale: Wyświetlanie kanału, Wysyłanie wiadomości i Osadzanie linków.');
-      await featureStore.update(state => { state.logChannelId = channel.id; });
+      await featureStore.update(state => { state.logChannelId = channel.id; state.logging = { ...logSettings(state), enabled: true, categoryId: channel.parentId }; });
       await log(interaction.guild, '📜 Logi skonfigurowane', `Kanał logów ustawił <@${interaction.user.id}>.`);
       return reply(interaction, `✅ Logi będą wysyłane na <#${channel.id}>.`);
     }
@@ -679,18 +684,22 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
 
   async function messageDeleted(message) {
     if (!message.guild || message.author?.bot) return;
-    await log(message.guild, '🗑️ Usunięto wiadomość', `Kanał: <#${message.channelId}>\nAutor: ${message.author ? `<@${message.author.id}>` : 'nieznany'}\nTreść pominięto.`);
+    await log(message.guild, '🗑️ Usunięto wiadomość', `Kanał: <#${message.channelId}>\nAutor: ${message.author ? `<@${message.author.id}>` : 'nieznany'}\nTreść pominięto.`, 0x5865f2, 'messages');
   }
 
   async function channelChanged(channel, created) {
     if (!channel.guild) return;
     if (!created && automaticChannelIds.delete(channel.id)) return;
-    await log(channel.guild, created ? '➕ Utworzono kanał' : '➖ Usunięto kanał', `Kanał: **${channel.name}** (${channel.id})`);
+    await log(channel.guild, created ? '➕ Utworzono kanał' : '➖ Usunięto kanał', `Kanał: **${channel.name}** (${channel.id})`, 0x5865f2, 'channels');
   }
 
   async function autoModerationAction(action) {
-    await log(action.guild, '🛡️ Auto Mod zablokował wiadomość', `Użytkownik: <@${action.userId}>\nKanał: <#${action.channelId}>\nReguła: ${action.ruleName}` , 0xedaa33);
+    await log(action.guild, '🛡️ Auto Mod zablokował wiadomość', `Użytkownik: <@${action.userId}>\nKanał: <#${action.channelId}>\nReguła: ${action.ruleName}` , 0xedaa33, 'automod');
   }
 
-  return { command, button, voiceState, messageDeleted, channelChanged, autoModerationAction, refreshStatisticsChannels };
+  async function memberChanged(member, joined) {
+    if (!member.guild || member.user.bot) return;
+    await log(member.guild, joined ? '👋 Użytkownik dołączył' : '🚪 Użytkownik opuścił serwer', `Użytkownik: ${member.user.tag || member.user.username} (${member.id})`, 0x5865f2, 'members');
+  }
+  return { command, button, voiceState, messageDeleted, channelChanged, autoModerationAction, refreshStatisticsChannels, memberChanged };
 }
