@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ChannelType } from 'discord.js';
-import { configureWelcome, createWelcomeSystem, welcomeCommands, welcomeDefaults, welcomeText, configureFarewell, createFarewellSystem, farewellCommands } from '../src/welcome.js';
+import { configureWelcome, createWelcomeSystem, welcomeCommands, welcomeDefaults, welcomeText, configureFarewell, createFarewellSystem, farewellCommands, validateMemberImage, MEMBER_IMAGE_MAX_BYTES } from '../src/welcome.js';
 
 function fixture() {
   const state = { welcome: { guilds: {} }, levels: { xp: 99 } };
@@ -74,4 +74,34 @@ test('pożegnania pomijają boty, inne serwery i wyłączony moduł', async () =
   await system.memberLeft({ ...f.member, user: { ...f.member.user, bot: true } });
   await system.memberLeft({ ...f.member, guild: { ...f.guild, id: 'other' } });
   assert.equal(f.sent.length, 0);
+});
+
+const png = { mime: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2fWQAAAAASUVORK5CYII=' };
+test('zdjęcia są walidowane na podstawie zawartości i rozmiaru', () => {
+  assert.equal(validateMemberImage(png).name, 'zdjecie.png');
+  assert.equal(validateMemberImage(null), null);
+  assert.throws(() => validateMemberImage({ ...png, mime: 'image/jpeg' }), /Format/);
+  assert.throws(() => validateMemberImage({ mime: 'image/svg+xml', data: Buffer.from('<svg/>').toString('base64') }), /Format/);
+  assert.throws(() => validateMemberImage({ ...png, data: '%%%=' }), /zdjęcie/);
+  assert.throws(() => validateMemberImage({ ...png, data: Buffer.alloc(MEMBER_IMAGE_MAX_BYTES + 1).toString('base64') }), /2 MB/);
+});
+for (const kind of ['welcome', 'farewell']) {
+  test(`zdjęcie ${kind} jest zapisane i wysłane jako załącznik embeda po restarcie`, async () => {
+    const f = fixture();
+    const configure = kind === 'welcome' ? configureWelcome : configureFarewell;
+    await configure({ ...f, body: { ...f.body, image: png } });
+    const system = kind === 'welcome' ? createWelcomeSystem({ featureStore: f.featureStore, guildId: 'guild' }) : createFarewellSystem({ featureStore: f.featureStore, guildId: 'guild' });
+    await system.memberJoined(f.member);
+    assert.equal(f.sent[0].embeds[0].toJSON().image.url, 'attachment://zdjecie.png');
+    assert.deepEqual(f.sent[0].files[0].attachment, Buffer.from(png.data, 'base64'));
+    await configure(f); // A text-only slash command preserves the saved image.
+    assert.equal(f.state[kind].guilds.guild.image.data, png.data);
+    await configure({ ...f, body: { ...f.body, image: null } });
+    assert.equal(f.state[kind].guilds.guild.image, null);
+  });
+}
+test('zdjęcie wymaga uprawnienia Załączanie plików', async () => {
+  const f = fixture();
+  f.channel.permissionsFor = () => ({ has: permissions => Array.isArray(permissions) });
+  await assert.rejects(configureWelcome({ ...f, body: { ...f.body, image: png } }), /Załączanie plików/);
 });

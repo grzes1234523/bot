@@ -21,12 +21,12 @@ const json = (res, status, data) => {
   res.end(JSON.stringify(data));
 };
 
-async function readJson(req) {
+async function readJson(req, maxBytes = 8192) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 8192) throw new Error('Treść żądania jest za duża.');
+    if (size > maxBytes) throw new Error('Treść żądania jest za duża.');
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -171,7 +171,7 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           if (req.method === 'POST') {
             if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
             try {
-              const settings = await configure({ guild, featureStore, body: await readJson(req) });
+              const settings = await configure({ guild, featureStore, body: await readJson(req, 3 * 1024 * 1024) });
               return json(res, 200, { ok: true, settings });
             } catch (error) { return json(res, 400, { error: error.message }); }
           }
