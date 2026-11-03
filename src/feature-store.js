@@ -5,6 +5,7 @@ import { databaseEnabled, loadDocument, refreshDocument, updateDocument } from '
 const initialState = () => ({
   levels: { guilds: {} },
   welcome: { guilds: {} },
+  farewell: { guilds: {} },
   economy: {},
   economyConfig: { currencySymbol: 'StrefaCoins', initialBank: 100, initialWallet: 100, dailyReward: 100, workMin: 15, workMax: 60, thousandsSeparator: 'space', currencyPosition: 'right' },
   warnings: {},

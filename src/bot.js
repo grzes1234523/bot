@@ -16,7 +16,7 @@ import { BotStatusReporter, sanitizeDiagnostic } from './status-reporter.js';
 import { WorkerStatus } from './worker-status.js';
 import { withTimeout } from './async-operation.js';
 import { createLevelSystem, levelCommands } from './levels.js';
-import { createWelcomeSystem, welcomeCommands } from './welcome.js';
+import { createWelcomeSystem, welcomeCommands, createFarewellSystem, farewellCommands } from './welcome.js';
 import { QUESTION_STAGES, validateStepAnswers } from './questions.js';
 import {
   labels, panelEmbed, panelButtons, reviewEmbeds, reviewButtons,
@@ -46,6 +46,7 @@ const featureHandlers = createFeatureHandlers({ client, cfg, applicationStore: s
 const proSystem = createProSystem({ client, featureStore, cfg });
 const levelSystem = createLevelSystem({ client, featureStore, guildId: cfg.guildId });
 const welcomeSystem = createWelcomeSystem({ featureStore, guildId: cfg.guildId });
+const farewellSystem = createFarewellSystem({ featureStore, guildId: cfg.guildId });
 const panelServer = startPanelServer({ client, getApplications: () => store.list(), featureStore });
 const shutdownTimers = new Set();
 let shutdownPromise;
@@ -522,7 +523,7 @@ client.once(Events.ClientReady, async ready => {
   await statusReporter.online();
   const guild = await ready.guilds.fetch(cfg.guildId).catch(() => null);
   if (!guild) { console.error('Bot nie ma dostępu do GUILD_ID.'); return; }
-  for (const command of [...levelCommands, ...welcomeCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
+  for (const command of [...levelCommands, ...welcomeCommands, ...farewellCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
   const levelTimer = setInterval(() => levelSystem.tick().catch(error => reportFailure('Błąd XP za rozmowy', error)), 15000);
   shutdownTimers.add(levelTimer);
   levelTimer.unref?.();
@@ -547,6 +548,11 @@ client.once(Events.ClientReady, async ready => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if (interaction.isChatInputCommand() && farewellCommands.some(command => command.name === interaction.commandName)) {
+    try { await farewellSystem.command(interaction); }
+    catch (error) { reportFailure('Błąd konfiguracji pożegnań', error); }
+    return;
+  }
   if (interaction.isChatInputCommand() && welcomeCommands.some(command => command.name === interaction.commandName)) {
     try { await welcomeSystem.command(interaction); }
     catch (error) { reportFailure('Błąd konfiguracji powitań', error); }
@@ -591,6 +597,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => featureHandlers.voice
 client.on(Events.VoiceStateUpdate, (oldState, newState) => levelSystem.voiceState(oldState, newState));
 client.on(Events.MessageCreate, message => levelSystem.message(message).catch(error => reportFailure('Błąd XP za wiadomość', error)));
 client.on(Events.GuildMemberAdd, member => welcomeSystem.memberJoined(member).catch(error => reportFailure('Nie udało się wysłać powitania', error)));
+client.on(Events.GuildMemberRemove, member => farewellSystem.memberLeft(member).catch(error => reportFailure('Nie udało się wysłać pożegnania', error)));
 client.on(Events.MessageDelete, message => featureHandlers.messageDeleted(message));
 client.on(Events.MessageCreate, message => proSystem.message(message).catch(error => reportFailure('Nie udało się zapisać aktywności ticketu', error)));
 client.on(Events.ChannelCreate, channel => featureHandlers.channelChanged(channel, true));

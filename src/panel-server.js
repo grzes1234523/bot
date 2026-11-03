@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { withTimeout } from './async-operation.js';
 import { levelSettings, levelRanking, validateLevelSettings } from './levels.js';
 import { createLevelChannel } from './level-channel.js';
-import { welcomeSettings, configureWelcome } from './welcome.js';
+import { welcomeSettings, configureWelcome, farewellSettings, configureFarewell } from './welcome.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -161,7 +161,9 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           try { await withTimeout(refreshData, refreshDataTimeoutMs); }
           catch { return json(res, 503, { error: 'Nie można odświeżyć danych ze wspólnej bazy. Spróbuj ponownie za chwilę.' }); }
         }
-        if (route === '/api/welcome') {
+        if (route === '/api/welcome' || route === '/api/farewell') {
+          const settingsFor = route === '/api/farewell' ? farewellSettings : welcomeSettings;
+          const configure = route === '/api/farewell' ? configureFarewell : configureWelcome;
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
           if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Zarządzanie serwerem.' });
           const guild = client.guilds.cache.get(GUILD_ID);
@@ -169,12 +171,12 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           if (req.method === 'POST') {
             if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
             try {
-              const settings = await configureWelcome({ guild, featureStore, body: await readJson(req) });
+              const settings = await configure({ guild, featureStore, body: await readJson(req) });
               return json(res, 200, { ok: true, settings });
             } catch (error) { return json(res, 400, { error: error.message }); }
           }
           const channels = await guild.channels.fetch();
-          return json(res, 200, { settings: welcomeSettings(featureStore.snapshot(), GUILD_ID), categories: channels.filter(c => c?.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })), channels: channels.filter(c => c && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(c.type)).map(c => ({ id: c.id, name: c.name, categoryId: c.parentId })) });
+          return json(res, 200, { settings: settingsFor(featureStore.snapshot(), GUILD_ID), categories: channels.filter(c => c?.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })), channels: channels.filter(c => c && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(c.type)).map(c => ({ id: c.id, name: c.name, categoryId: c.parentId })) });
         }
         if (route === '/api/levels' || route === '/api/levels/channel') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
