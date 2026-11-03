@@ -21,6 +21,11 @@
 #module-poziomy .grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}#levelForm .grid label{display:flex;flex-direction:column;gap:10px;color:var(--muted);font-size:13px}#levelForm input[type=number],#levelForm select{display:block;width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:#11131b;color:var(--text);font:inherit}#levelForm input[type=checkbox]{accent-color:#8b5cf6}#levelRewards .row{align-items:end;gap:14px}#levelRewards label{display:flex;flex-direction:column;gap:8px;min-width:120px;flex:1}#module-poziomy table{width:100%}@media(max-width:650px){#module-poziomy .grid{grid-template-columns:1fr}}
 #welcomeForm .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}#welcomeForm .grid label{display:flex;flex-direction:column;gap:10px}#welcomeForm select,#welcomeForm textarea{width:100%;padding:12px;margin-top:8px;background:#11131b;color:var(--text);border:1px solid var(--line);border-radius:9px;font:inherit}#welcomeForm input[type=checkbox]{accent-color:#8b5cf6}@media(max-width:650px){#welcomeForm .grid{grid-template-columns:1fr}}
 #farewellForm .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}#farewellForm .grid label{display:flex;flex-direction:column;gap:10px}#farewellForm select,#farewellForm textarea{width:100%;padding:12px;margin-top:8px;background:#11131b;color:var(--text);border:1px solid var(--line);border-radius:9px;font:inherit}#farewellForm input[type=checkbox]{accent-color:#8b5cf6}@media(max-width:650px){#farewellForm .grid{grid-template-columns:1fr}}
+
+#welcomeImageFile,#farewellImageFile{display:block;width:100%;padding:10px;background:#11131b;color:#d8d2ed;border:1px solid #49405f;border-radius:10px;font:inherit;cursor:pointer}
+#welcomeImageFile::file-selector-button,#farewellImageFile::file-selector-button{margin-right:14px;padding:11px 18px;background:#8b5cf6;color:#fff;border:0;border-radius:8px;font:inherit;font-weight:700;cursor:pointer;transition:background .15s}
+#welcomeImageFile::file-selector-button:hover,#farewellImageFile::file-selector-button:hover{background:#a078ff}
+#welcomeImageFile:focus-visible,#farewellImageFile:focus-visible{outline:2px solid #b79aff;outline-offset:3px}
 </style></head>
 <body>
   <section id="landing" class="landing-page hidden" aria-label="Strona główna Strefy Gry i Rozrywki">
