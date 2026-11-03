@@ -170,6 +170,10 @@ export function startPanelServer({ client, getApplications, featureStore, discor
             catch (error) { return json(res, 400, { error: error.message }); }
             const roles = await guild.roles.fetch();
             const me = guild.members.me ?? await guild.members.fetchMe();
+            if (settings.announcementChannelId) {
+              const channel = await guild.channels.fetch(settings.announcementChannelId).catch(() => null);
+              if (!channel || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type) || !channel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages])) return json(res, 400, { error: 'Wybierz kanał tekstowy, w którym bot może wyświetlać kanał i wysyłać wiadomości.' });
+            }
             for (const reward of settings.rewards) {
               const role = roles.get(reward.roleId);
               if (!role || role.id === guild.id || role.managed || !role.editable || !me.permissions.has(PermissionFlagsBits.ManageRoles)) return json(res, 400, { error: 'Bot musi mieć Zarządzanie rolami, a nagrody muszą być poniżej jego najwyższej roli.' });
@@ -185,7 +189,8 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           const state = featureStore.snapshot();
           const ranking = levelRanking(state, GUILD_ID);
           const roles = await guild.roles.fetch();
-          return json(res, 200, { settings: levelSettings(state, GUILD_ID), ranking: ranking.slice(0, 100), totals: { users: ranking.length, xp: ranking.reduce((sum, user) => sum + user.xp, 0), voiceMinutes: ranking.reduce((sum, user) => sum + user.voiceMinutes, 0) }, roles: roles.filter(role => role && role.id !== guild.id && !role.managed && role.editable).map(role => ({ id: role.id, name: role.name })) });
+          const channels = await guild.channels.fetch();
+          return json(res, 200, { settings: levelSettings(state, GUILD_ID), ranking: ranking.slice(0, 100), totals: { users: ranking.length, xp: ranking.reduce((sum, user) => sum + user.xp, 0), voiceMinutes: ranking.reduce((sum, user) => sum + user.voiceMinutes, 0) }, roles: roles.filter(role => role && role.id !== guild.id && !role.managed && role.editable).map(role => ({ id: role.id, name: role.name })), channels: channels.filter(channel => channel && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)).map(channel => ({ id: channel.id, name: channel.name })) });
         }
         if (route === '/api/recruitment') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });

@@ -81,3 +81,27 @@ test('walidacja panelu odrzuca nadmierne XP, duplikaty ról i błędne typy', ()
   const reward = { level: 2, roleId: '123456789012345678' };
   assert.throws(() => validateLevelSettings({ ...levelDefaults, rewards: [reward, reward] }));
 });
+
+test('powiadomienie trafia na wybrany kanał tylko po przekroczeniu poziomu', async () => {
+  const f = fixture(); const sent = [];
+  const channelId = '123456789012345679';
+  f.guild.channels = { fetch: async id => { assert.equal(id, channelId); return { isTextBased: () => true, send: async payload => sent.push(payload) }; } };
+  await f.store.update(state => { state.levels.guilds.guild = { settings: { ...levelDefaults, announcementChannelId: channelId }, users: { a: { xp: 90, messageCount: 0, voiceMinutes: 0 } } }; });
+  const system = f.system();
+  await system.message(f.message());
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].content, /poziom 1/);
+  assert.deepEqual(sent[0].allowedMentions, { parse: [], users: ['a'] });
+  f.advance(60000); await system.message(f.message());
+  assert.equal(sent.length, 1);
+});
+
+test('błąd kanału nie odbiera XP; pusta konfiguracja wyłącza powiadomienia', async () => {
+  const f = fixture();
+  f.guild.channels = { fetch: async () => { throw new Error('Missing Access'); } };
+  await f.store.update(state => { state.levels.guilds.guild = { settings: { ...levelDefaults, announcementChannelId: '123456789012345679' }, users: { a: { xp: 90, messageCount: 0, voiceMinutes: 0 } } }; });
+  await f.system().message(f.message());
+  assert.equal(levelRanking(f.store.snapshot(), 'guild')[0].xp, 105);
+  assert.equal(validateLevelSettings({ ...levelDefaults, announcementChannelId: '' }).announcementChannelId, null);
+  assert.throws(() => validateLevelSettings({ ...levelDefaults, announcementChannelId: 'zly-kanal' }));
+});

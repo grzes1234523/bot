@@ -1,6 +1,6 @@
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 
-export const levelDefaults = { enabled: true, messagesEnabled: true, voiceEnabled: true, messageXp: 15, messageCooldownSeconds: 60, voiceXpPerMinute: 5, rewards: [] };
+export const levelDefaults = { enabled: true, messagesEnabled: true, voiceEnabled: true, messageXp: 15, messageCooldownSeconds: 60, voiceXpPerMinute: 5, announcementChannelId: null, rewards: [] };
 export const levelCommands = [
   new SlashCommandBuilder().setName('level').setDescription('Pokazuje poziom, XP i postęp aktywności.')
     .addUserOption(o => o.setName('uzytkownik').setDescription('Osoba, której poziom chcesz sprawdzić')),
@@ -24,11 +24,12 @@ export function validateLevelSettings(body) {
   }
   if (!Array.isArray(body.rewards) || body.rewards.length > 20) throw new Error('Możesz ustawić maksymalnie 20 ról za poziomy.');
   const seen = new Set();
+  if (body.announcementChannelId != null && body.announcementChannelId !== '' && !/^\d{17,20}$/.test(body.announcementChannelId)) throw new Error('Wybierz poprawny kanał powiadomień.');
   for (const reward of body.rewards) {
     if (!Number.isInteger(reward.level) || reward.level < 1 || reward.level > 1000 || !/^\d{17,20}$/.test(reward.roleId) || seen.has(reward.roleId)) throw new Error('Sprawdź poziomy i role nagród; role nie mogą się powtarzać.');
     seen.add(reward.roleId);
   }
-  return Object.fromEntries([...Object.keys(levelDefaults)].map(key => [key, body[key]]));
+  return { ...Object.fromEntries([...Object.keys(levelDefaults)].map(key => [key, body[key]])), announcementChannelId: body.announcementChannelId || null };
 }
 function ensureGuild(state, guildId) {
   state.levels ??= { guilds: {} };
@@ -53,6 +54,7 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
   }
   async function award(member, source, time) {
     let awardedXp = null;
+    let previousLevel = 0;
     await featureStore.update(state => {
       const settings = levelSettings(state, guildId);
       if (!settings.enabled || !(source === 'message' ? settings.messagesEnabled : settings.voiceEnabled)) return;
@@ -63,12 +65,26 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
       const cooldown = source === 'message' ? settings.messageCooldownSeconds * 1000 : 60000;
       if (last != null && time - last < cooldown) return;
       user.name = member.displayName || member.user.username;
+      previousLevel = levelForXp(user.xp);
       user.xp = Math.min(Number.MAX_SAFE_INTEGER, (Number(user.xp) || 0) + (source === 'message' ? settings.messageXp : settings.voiceXpPerMinute));
       if (source === 'message') { user.lastMessageAt = time; user.messageCount++; }
       else { user.lastVoiceAt = time; user.voiceMinutes++; }
       awardedXp = user.xp;
     });
-    if (awardedXp != null) await rewardRoles(member, awardedXp);
+    if (awardedXp != null) {
+      await rewardRoles(member, awardedXp);
+      const settings = levelSettings(featureStore.snapshot(), guildId);
+      const level = levelForXp(awardedXp);
+      if (level > previousLevel && settings.announcementChannelId) {
+        try {
+          const channel = await member.guild.channels.fetch(settings.announcementChannelId);
+          if (channel?.isTextBased() && !channel.isThread?.()) await channel.send({
+            content: `🎉 <@${member.id}> zdobywa **poziom ${level}**! Łącznie **${awardedXp} XP**.`,
+            allowedMentions: { parse: [], users: [member.id] },
+          });
+        } catch (error) { console.warn('Nie udało się wysłać powiadomienia o poziomie:', error.message); }
+      }
+    }
   }
   async function message(message) {
     if (message.guildId !== guildId || message.author?.bot || message.webhookId || message.system || !message.member) return;

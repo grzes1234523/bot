@@ -99,6 +99,7 @@ test('panel poziomów wymaga sesji i uprawnień zarządzania serwerem', async t 
 test('panel poziomów odczytuje ranking ze wspólnych danych bota', async t => {
   const panel = await fixture(t, { mode: 'rest', featureStore: { snapshot: () => ({ levels: { guilds: { [guildId]: { users: { user: { xp: 400, messageCount: 10, voiceMinutes: 50 } } } } } }) } });
   panel.client.guilds.cache.get(guildId).roles = { fetch: async () => new MapWithFilter() };
+  panel.client.guilds.cache.get(guildId).channels = { fetch: async () => new MapWithFilter() };
   class MapWithFilter extends Map { filter() { return { map: () => [] }; } }
   const cookie = await panel.authenticate();
   const response = await panel.request('/api/levels', cookie);
