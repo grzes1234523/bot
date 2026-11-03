@@ -75,10 +75,15 @@ export class FeatureStore {
   snapshot() { return structuredClone(this.#state); }
 
   async refresh() {
-    if (!this.#database) return this.snapshot();
-    const fresh = await refreshDocument('features');
-    if (fresh) this.#state = this.#normalize(fresh);
-    return this.snapshot();
+    const task = this.#queue.then(async () => {
+      if (this.#database) {
+        const fresh = await refreshDocument('features');
+        if (fresh) this.#state = this.#normalize(fresh);
+      }
+      return this.snapshot();
+    });
+    this.#queue = task.then(() => {}, () => {});
+    return task;
   }
 
   async update(change) {

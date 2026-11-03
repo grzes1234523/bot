@@ -51,10 +51,15 @@ export class ApplicationStore {
   }
 
   async refresh() {
-    if (!this.#database) return this.list();
-    const fresh = await refreshDocument('applications');
-    if (fresh) this.#data = fresh;
-    return this.list();
+    const task = this.#queue.then(async () => {
+      if (this.#database) {
+        const fresh = await refreshDocument('applications');
+        if (fresh) this.#data = fresh;
+      }
+      return this.list();
+    });
+    this.#queue = task.then(() => {}, () => {});
+    return task;
   }
 
   latestByUser(userId) {
