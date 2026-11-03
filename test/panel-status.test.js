@@ -96,6 +96,33 @@ test('panel poziomów wymaga sesji i uprawnień zarządzania serwerem', async t 
   assert.equal((await panel.request('/api/levels', cookie)).status, 403);
 });
 
+test('zabawy, pomysły i aktywność wymagają logowania oraz uprawnień', async t => {
+  const panel = await fixture(t, { mode: 'rest', permissions: '0' });
+  for (const route of ['/api/community', '/api/activity']) assert.equal((await panel.request(route)).status, 401);
+  const cookie = await panel.authenticate();
+  for (const route of ['/api/community', '/api/activity']) assert.equal((await panel.request(route, cookie)).status, 403);
+});
+
+test('udany zapis ustawień zapisuje aktora i działanie w historii, odrzucone źródło nie zapisuje', async t => {
+  let state = {};
+  const featureStore = { snapshot: () => structuredClone(state), update: async fn => fn(state) };
+  const panel = await fixture(t, { mode: 'rest', featureStore });
+  panel.client.guilds.cache.get(guildId).id = guildId;
+  const cookie = await panel.authenticate();
+  const url = new URL('/api/community', (await panel.request('/health')).url);
+  const body = JSON.stringify({ gamesEnabled: true, ideasEnabled: true, categoryId: null, ideasChannelId: null });
+  const response = await localFetch(url, { method: 'POST', headers: { Cookie: cookie, Origin: 'http://localhost:3000', 'Content-Type': 'application/json' }, body });
+  assert.equal(response.status, 200);
+  await response.json();
+  assert.equal(state.panelActivity.length, 1);
+  assert.equal(state.panelActivity[0].actor.name, 'tester');
+  const rejected = await localFetch(url, { method: 'POST', headers: { Cookie: cookie, Origin: 'https://example.invalid', 'Content-Type': 'application/json' }, body });
+  assert.equal(rejected.status, 403);
+  assert.equal(state.panelActivity.length, 1);
+  const activity = await (await panel.request('/api/activity', cookie)).json();
+  assert.equal(activity.entries[0].route, '/api/community');
+});
+
 test('panel poziomów odczytuje ranking ze wspólnych danych bota', async t => {
   const panel = await fixture(t, { mode: 'rest', featureStore: { snapshot: () => ({ levels: { guilds: { [guildId]: { users: { user: { xp: 400, messageCount: 10, voiceMinutes: 50 } } } } } }) } });
   panel.client.guilds.cache.get(guildId).roles = { fetch: async () => new MapWithFilter() };

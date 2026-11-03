@@ -17,6 +17,7 @@ import { WorkerStatus } from './worker-status.js';
 import { withTimeout } from './async-operation.js';
 import { createLevelSystem, levelCommands } from './levels.js';
 import { createWelcomeSystem, welcomeCommands, createFarewellSystem, farewellCommands } from './welcome.js';
+import { createCommunitySystem, communityCommands } from './community.js';
 import { QUESTION_STAGES, validateStepAnswers } from './questions.js';
 import {
   labels, panelEmbed, panelButtons, reviewEmbeds, reviewButtons,
@@ -47,6 +48,7 @@ const proSystem = createProSystem({ client, featureStore, cfg });
 const levelSystem = createLevelSystem({ client, featureStore, guildId: cfg.guildId });
 const welcomeSystem = createWelcomeSystem({ featureStore, guildId: cfg.guildId });
 const farewellSystem = createFarewellSystem({ featureStore, guildId: cfg.guildId });
+const communitySystem = createCommunitySystem({ featureStore, guildId: cfg.guildId });
 const panelServer = startPanelServer({ client, getApplications: () => store.list(), featureStore });
 const shutdownTimers = new Set();
 let shutdownPromise;
@@ -523,7 +525,7 @@ client.once(Events.ClientReady, async ready => {
   await statusReporter.online();
   const guild = await ready.guilds.fetch(cfg.guildId).catch(() => null);
   if (!guild) { console.error('Bot nie ma dostępu do GUILD_ID.'); return; }
-  for (const command of [...levelCommands, ...welcomeCommands, ...farewellCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
+  for (const command of [...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
   const levelTimer = setInterval(() => levelSystem.tick().catch(error => reportFailure('Błąd XP za rozmowy', error)), 15000);
   shutdownTimers.add(levelTimer);
   levelTimer.unref?.();
@@ -548,6 +550,11 @@ client.once(Events.ClientReady, async ready => {
 });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if ((interaction.isChatInputCommand() && communityCommands.some(command => command.name === interaction.commandName)) || (interaction.isButton() && interaction.customId.startsWith('strefa:community:'))) {
+    try { if (interaction.isButton()) await communitySystem.button(interaction); else await communitySystem.command(interaction); }
+    catch (error) { reportFailure('Błąd zabawy lub pomysłu', error); const payload = { content: 'Nie udało się wykonać działania. Sprawdź konfigurację kanału i uprawnienia bota.' }; if (interaction.deferred) await interaction.editReply(payload).catch(() => {}); else if (!interaction.replied) await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral }).catch(() => {}); }
+    return;
+  }
   if (interaction.isChatInputCommand() && farewellCommands.some(command => command.name === interaction.commandName)) {
     try { await farewellSystem.command(interaction); }
     catch (error) { reportFailure('Błąd konfiguracji pożegnań', error); }

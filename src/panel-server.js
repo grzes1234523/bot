@@ -7,6 +7,7 @@ import { withTimeout } from './async-operation.js';
 import { levelSettings, levelRanking, validateLevelSettings } from './levels.js';
 import { createLevelChannel } from './level-channel.js';
 import { welcomeSettings, configureWelcome, farewellSettings, configureFarewell } from './welcome.js';
+import { communitySettings, saveCommunitySettings, decideIdea } from './community.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -160,6 +161,36 @@ export function startPanelServer({ client, getApplications, featureStore, discor
         if (current?.value.user && current.value.canManage && refreshData) {
           try { await withTimeout(refreshData, refreshDataTimeoutMs); }
           catch { return json(res, 503, { error: 'Nie można odświeżyć danych ze wspólnej bazy. Spróbuj ponownie za chwilę.' }); }
+        }
+        if (req.method === 'POST' && current?.value.user && current.value.canManage && req.headers.origin === new URL(baseUrl).origin) {
+          const actor = { id: current.value.user.id, name: current.value.user.username };
+          res.once('finish', () => {
+            if (res.statusCode < 200 || res.statusCode >= 300) return;
+            const entry = { id: crypto.randomUUID(), at: new Date().toISOString(), guildId: GUILD_ID, actor, route, action: ({ '/api/welcome': 'Zmieniono powitania', '/api/farewell': 'Zmieniono pożegnania', '/api/levels': 'Zmieniono poziomy', '/api/levels/channel': 'Utworzono lub wybrano kanał poziomów', '/api/community': 'Zmieniono zabawy lub pomysły', '/api/economy/settings': 'Zmieniono ekonomię', '/api/tickets/panels': 'Zmieniono panel ticketów', '/api/moderation': 'Zmieniono moderację', '/api/automod': 'Zmieniono Auto Mod', '/api/verification': 'Zmieniono weryfikację', '/api/auto-channels': 'Zmieniono auto kanały', '/api/voice-support': 'Zmieniono wsparcie głosowe' })[route] || 'Zmieniono ustawienia panelu' };
+            featureStore.update(state => { state.panelActivity = [...(state.panelActivity ?? []), entry].slice(-1000); }).catch(error => console.error('Nie udało się zapisać aktywności panelu:', error.message));
+          });
+        }
+        if (route === '/api/community' || route === '/api/activity') {
+          if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
+          if (!current.value.canManage) return json(res, 403, { error: 'Wymagane uprawnienie Zarządzanie serwerem.' });
+          const guild = client.guilds.cache.get(GUILD_ID);
+          if (!guild || !isDiscordAvailable()) return json(res, 503, { error: 'Brak połączenia z Discordem.' });
+          if (route === '/api/activity') {
+            if (req.method !== 'GET') return json(res, 405, { error: 'Historia jest dostępna tylko do odczytu.' });
+            const state = featureStore.snapshot(), users = levelRanking(state, GUILD_ID), g = state.community?.guilds?.[GUILD_ID];
+            return json(res, 200, { messages: users.reduce((sum, u) => sum + (u.messageCount || 0), 0), voiceMinutes: users.reduce((sum, u) => sum + (u.voiceMinutes || 0), 0), draws: g?.draws ?? 0, quizzes: g?.quizCount ?? 0, ideas: g?.ideas?.length ?? 0, entries: (state.panelActivity ?? []).filter(entry => entry.guildId === GUILD_ID).slice(-100).reverse() });
+          }
+          if (req.method === 'POST') {
+            if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
+            try {
+              const body = await readJson(req);
+              if (body.action === 'decide') await decideIdea({ guild, featureStore, id: body.id, status: body.status, actorId: current.value.user.id });
+              else await saveCommunitySettings({ guild, featureStore, body });
+              return json(res, 200, { ok: true });
+            } catch (error) { return json(res, 400, { error: error.message }); }
+          }
+          const state = featureStore.snapshot(), channels = await guild.channels.fetch();
+          return json(res, 200, { settings: communitySettings(state, GUILD_ID), ideas: (state.community?.guilds?.[GUILD_ID]?.ideas ?? []).slice(-100).reverse().map(idea => ({ ...idea, votes: { yes: Object.values(idea.votes).filter(v => v === 'yes').length, no: Object.values(idea.votes).filter(v => v === 'no').length } })), categories: channels.filter(c => c?.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })), channels: channels.filter(c => c && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(c.type)).map(c => ({ id: c.id, name: c.name, categoryId: c.parentId })) });
         }
         if (route === '/api/welcome' || route === '/api/farewell') {
           const settingsFor = route === '/api/farewell' ? farewellSettings : welcomeSettings;
