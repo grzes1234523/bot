@@ -15,6 +15,7 @@ import {
 
 import { logSettings } from './log-settings.js';
 import { clearMessages, clearMessagesCommand } from './clear-messages.js';
+import { collectServerStatistics } from './server-statistics.js';
 const command = name => new SlashCommandBuilder().setName(name);
 const adminCommand = name => command(name);
 
@@ -120,10 +121,18 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
     return embed;
   }
 
+  async function publishStatistics(guild) {
+    const statistics = collectServerStatistics(guild);
+    if (statistics) await featureStore.update(state => { state.serverStatistics = statistics; });
+    return statistics;
+  }
+
   async function refreshStatisticsChannels(guild) {
+    await guild.members.fetch({ withPresences: true });
+    await publishStatistics(guild);
     const config = featureStore.snapshot().statisticsChannels;
     if (config?.onlineChannelId || config?.membersChannelId || config?.botsChannelId) {
-      const members = await guild.members.fetch({ withPresences: true });
+      const members = guild.members.cache;
       const bots = members.filter(member => member.user.bot).size;
       const online = members.filter(member => member.presence && member.presence.status !== 'offline').size;
       const names = [
@@ -704,5 +713,5 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
     if (!member.guild || member.user.bot) return;
     await log(member.guild, joined ? '👋 Użytkownik dołączył' : '🚪 Użytkownik opuścił serwer', `Użytkownik: ${member.user.tag || member.user.username} (${member.id})`, 0x5865f2, 'members');
   }
-  return { command, button, voiceState, messageDeleted, channelChanged, autoModerationAction, refreshStatisticsChannels, memberChanged };
+  return { command, button, voiceState, messageDeleted, channelChanged, autoModerationAction, refreshStatisticsChannels, publishStatistics, memberChanged };
 }

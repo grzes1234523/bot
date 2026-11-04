@@ -74,8 +74,28 @@ async function fixture(t, {
       return response.headers.get('set-cookie').split(';')[0];
     } finally { mockedFetch.mock.restore(); }
   }
-  return { request, authenticate, client };
+  return { request, authenticate, client, guild };
 }
+
+test('statystyki REST używają danych workera zamiast niepełnego cache panelu', async t => {
+  const serverStatistics = { guildId, members: 24, humans: 17, bots: 7, online: 13, updatedAt: new Date().toISOString() };
+  const state = { serverStatistics, economy: {}, economyConfig: {} };
+  const panel = await fixture(t, { mode: 'rest', featureStore: { snapshot: () => state } });
+  const { Collection } = await import('discord.js');
+  panel.guild.channels = { cache: new Collection() };
+  panel.guild.memberCount = 0;
+  panel.guild.members = { cache: new Collection([['self', { user: { bot: true } }]]) };
+  const cookie = await panel.authenticate();
+  let response = await panel.request('/api/statistics', cookie);
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.deepEqual([data.members, data.humans, data.bots, data.online], [24, 17, 7, 13]);
+  assert.equal(data.updatedAt, serverStatistics.updatedAt);
+  state.serverStatistics = null;
+  response = await panel.request('/api/statistics', cookie);
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /aktualne statystyki/);
+});
 
 for (const ready of [false, true]) {
   test(`health Gateway pokazuje rzeczywisty stan połączenia: ${ready}`, async t => {

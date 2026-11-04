@@ -9,6 +9,7 @@ import { createLevelChannel } from './level-channel.js';
 import { welcomeSettings, configureWelcome, farewellSettings, configureFarewell } from './welcome.js';
 import { communitySettings, saveCommunitySettings, decideIdea } from './community.js';
 import { logSettings, logEvents, saveLogSettings } from './log-settings.js';
+import { readServerStatistics } from './server-statistics.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -502,31 +503,25 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           const guild = client.guilds.cache.get(GUILD_ID);
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           const channels = guild.channels.cache;
-          const config = featureStore.snapshot().statisticsChannels ?? {};
-          const countIn = id => {
-            const channel = id ? channels.get(id) : null;
-            const match = channel?.name.match(/(\d+)\s*$/);
-            return match ? Number(match[1]) : null;
-          };
-          const all = guild.memberCount ?? 0;
-          const bots = countIn(config.botsChannelId) ?? guild.members.cache.filter(member => member.user.bot).size;
+          const statistics = readServerStatistics(featureStore.snapshot().serverStatistics, GUILD_ID);
+          if (!statistics) return json(res, 503, { error: 'Oczekuję na aktualne statystyki z bota. Spróbuj ponownie za chwilę.' });
           const applications = Object.values(getApplications());
           const economy = featureStore.snapshot();
           const totalCoins = Object.values(economy.economy).reduce((sum, account) => sum + (Number(account.balance) || 0) + (Number(account.bank) || 0), 0);
           const countStatus = status => applications.filter(app => app.status === status).length;
           return json(res, 200, {
             server: guild.name,
-            online: countIn(config.onlineChannelId),
-            members: countIn(config.membersChannelId) ?? all,
-            humans: Math.max(0, (countIn(config.membersChannelId) ?? all) - bots),
-            bots,
+            online: statistics.online,
+            members: statistics.members,
+            humans: statistics.humans,
+            bots: statistics.bots,
             textChannels: channels.filter(channel => [ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum, ChannelType.GuildMedia].includes(channel.type)).size,
             voiceChannels: channels.filter(channel => [ChannelType.GuildVoice, ChannelType.GuildStageVoice].includes(channel.type)).size,
             categories: channels.filter(channel => channel.type === ChannelType.GuildCategory).size,
             applications: { pending: countStatus('pending'), accepted: countStatus('accepted'), rejected: countStatus('rejected'), closed: countStatus('closed') },
             economy: { accounts: Object.keys(economy.economy).length, totalCoins, currency: economy.economyConfig.currencySymbol },
             createdTimestamp: guild.createdTimestamp,
-            updatedAt: new Date().toISOString(),
+            updatedAt: statistics.updatedAt,
           });
         }
         if (route === '/api/economy/settings') {

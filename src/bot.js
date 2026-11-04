@@ -535,6 +535,10 @@ client.once(Events.ClientReady, async ready => {
   const refreshStats = () => featureHandlers.refreshStatisticsChannels(guild)
     .catch(error => reportFailure('Nie udało się odświeżyć liczników serwera', error));
   await refreshStats();
+  const statisticsDataTimer = setInterval(() => featureHandlers.publishStatistics(guild)
+    .catch(error => reportFailure('Nie udało się udostępnić statystyk panelowi', error)), 30000);
+  shutdownTimers.add(statisticsDataTimer);
+  statisticsDataTimer.unref?.();
   const statsTimer = setInterval(refreshStats, 5 * 60 * 1000);
   shutdownTimers.add(statsTimer);
   statsTimer.unref?.();
