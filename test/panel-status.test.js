@@ -12,7 +12,7 @@ async function fixture(t, {
   mode, ready = false, permissions = '32', guildPresent = true,
   getApplications = () => [{ id: 'A1', status: 'pending', createdAt: '2026-01-01T12:00:00Z' }],
   featureStore = { snapshot: () => ({}) },
-  getWorkerStatus, refreshData, workerStatusTimeoutMs, refreshDataTimeoutMs,
+  getWorkerStatus, refreshData, workerStatusTimeoutMs, refreshDataTimeoutMs, oauthGuilds, getGuildApplications,
 } = {}) {
   const env = {
     CLIENT_ID: clientId,
@@ -33,6 +33,7 @@ async function fixture(t, {
   const server = startPanelServer({
     client,
     getApplications,
+    getGuildApplications,
     featureStore,
     getWorkerStatus,
     refreshData,
@@ -50,9 +51,10 @@ async function fixture(t, {
   });
   await once(server, 'listening');
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
-  const request = (route, cookie) => localFetch(`${baseUrl}${route}`, {
+  const request = (route, cookie, options = {}) => localFetch(`${baseUrl}${route}`, {
+    ...options,
     redirect: 'manual',
-    headers: cookie ? { Cookie: cookie } : {},
+    headers: { ...(options.headers ?? {}), ...(cookie ? { Cookie: cookie } : {}) },
   });
   async function authenticate() {
     const start = await request('/auth/discord');
@@ -64,7 +66,7 @@ async function fixture(t, {
       calls.push(String(url));
       if (url === 'https://discord.com/api/v10/oauth2/token') return Response.json({ access_token: 'test-access-token' });
       if (url === 'https://discord.com/api/v10/users/@me') return Response.json({ id: '123456789012345682', username: 'tester' });
-      if (url === 'https://discord.com/api/v10/users/@me/guilds') return Response.json([{ id: guildId, permissions }]);
+      if (url === 'https://discord.com/api/v10/users/@me/guilds') return Response.json(oauthGuilds ?? [{ id: guildId, permissions }]);
       throw new Error(`Niedozwolone połączenie w teście: ${url}`);
     });
     try {
@@ -202,7 +204,7 @@ test('odłączony Gateway nie udostępnia operacji Discorda', async t => {
 test('panel REST nie omija sprawdzenia dostępu do skonfigurowanego serwera', async t => {
   const panel = await fixture(t, { mode: 'rest', guildPresent: false });
   const cookie = await panel.authenticate();
-  assert.equal((await panel.request('/api/recruitment', cookie)).status, 503);
+  assert.equal((await panel.request('/api/recruitment', cookie)).status, 403);
 });
 
 function sharedWorkerStorage() {
@@ -383,3 +385,40 @@ for (const [description, refreshData] of [
     assert.equal((await health.json()).ok, true);
   });
 }
+
+
+test('wybór serwera izoluje ekonomię, tickety i rekrutację oraz blokuje obce ID', async t => {
+  const { initialState } = await import('../src/feature-store.js');
+  const { Collection } = await import('discord.js');
+  const other = '123456789012345680', forbidden = '123456789012345681';
+  const state = initialState(); state.economyConfig.currencySymbol = 'STARE';
+  state.tickets.panels.push({ guildId, messageId: 'old-message', channelId: 'old-channel', title: 'Stary panel' });
+  const featureStore = { snapshot: () => structuredClone(state), update: async change => change(state) };
+  const panel = await fixture(t, { mode: 'rest', featureStore,
+    oauthGuilds: [{ id: guildId, name: 'Strefa', permissions: '32' }, { id: other, name: 'Nowy', permissions: '32' }, { id: forbidden, name: 'Obcy', permissions: '0' }],
+    getGuildApplications: async id => id === other ? [{ id: 'NEW', status: 'pending' }] : [{ id: 'OLD', status: 'accepted' }],
+  });
+  let allowed = true;
+  panel.client.guilds.cache.set(other, { id: other, name: 'Nowy', iconURL: () => null,
+    members: { fetch: async () => ({ permissions: { has: () => allowed } }) },
+    channels: { fetch: async () => new Collection() }, roles: { fetch: async () => new Collection() },
+  });
+  const cookie = await panel.authenticate();
+  const post = (route, body, headers = {}) => panel.request(route, cookie, { method: 'POST', headers: { Origin: 'http://localhost:3000', 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  let response = await panel.request('/api/guilds', cookie); const guilds = await response.json();
+  assert.equal(guilds.guilds.length, 2); assert.ok(guilds.guilds.every(g => g.id !== forbidden));
+  assert.equal((await post('/api/guilds', { guildId: forbidden })).status, 403);
+  assert.equal((await post('/api/guilds', { guildId: other }, { Origin: 'https://evil.invalid' })).status, 403);
+  assert.equal((await post('/api/guilds', { guildId: other })).status, 200);
+  const config = { ...state.economyConfig, currencySymbol: 'NOWE' };
+  assert.equal((await post('/api/economy/settings', config)).status, 200);
+  assert.equal(state.economyConfig.currencySymbol, 'STARE');
+  assert.equal(state.serverModules[other].economyConfig.currencySymbol, 'NOWE');
+  response = await panel.request('/api/recruitment', cookie); assert.equal((await response.json()).applications[0].id, 'NEW');
+  response = await panel.request('/api/tickets/panels', cookie); assert.deepEqual((await response.json()).panels, []);
+  response = await post('/api/tickets/panels', { action: 'delete', panelId: 'old-message' }); assert.equal(response.status, 404);
+  assert.equal(state.tickets.panels.length, 1);
+  response = await panel.request('/api/economy/settings', cookie, { headers: { 'X-Guild-ID': guildId } }); assert.equal(response.status, 409);
+  allowed = false;
+  assert.equal((await panel.request('/api/economy/settings', cookie)).status, 403);
+});

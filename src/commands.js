@@ -1,4 +1,4 @@
-import { SlashCommandBuilder } from 'discord.js';
+import { SlashCommandBuilder, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { featureCommands } from './features.js';
 import { levelCommands } from './levels.js';
 import { welcomeCommands, farewellCommands } from './welcome.js';
@@ -7,7 +7,12 @@ import { communityCommands } from './community.js';
 const applicationId = command => command.addStringOption(opt =>
   opt.setName('id').setDescription('ID podania, np. A3D4F501').setRequired(true));
 
-const recruitmentCommands = [
+export const recruitmentCommands = [
+  new SlashCommandBuilder().setName('rekrutacja-ustaw').setDescription('Konfiguruje rekrutację na bieżącym serwerze.').setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .addChannelOption(o => o.setName('kanal').setDescription('Kanał na podania').addChannelTypes(ChannelType.GuildText).setRequired(true))
+    .addRoleOption(o => o.setName('rola').setDescription('Rola po zaakceptowaniu podania').setRequired(true))
+    .addRoleOption(o => o.setName('obsluga').setDescription('Rola osób rozpatrujących podania'))
+    .addChannelOption(o => o.setName('logi').setDescription('Kanał logów rekrutacji').addChannelTypes(ChannelType.GuildText)),
   new SlashCommandBuilder().setName('rekrutacja-panel').setDescription('Publikuje panel rekrutacyjny na tym kanale (administracja).'),
   new SlashCommandBuilder().setName('rekrutacja-akceptuj').setDescription('Akceptuje podanie i nadaje rolę po ID.')
     .addStringOption(opt => opt.setName('id').setDescription('ID podania').setRequired(true))

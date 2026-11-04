@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { databaseEnabled, loadDocument, refreshDocument, updateDocument } from './database.js';
 
-const initialState = () => ({
+export const initialState = () => ({
   levels: { guilds: {} },
   welcome: { guilds: {} },
   farewell: { guilds: {} },

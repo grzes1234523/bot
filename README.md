@@ -203,7 +203,7 @@ Przed pierwszym uruchomieniem usług na produkcji trzeba przenieść istniejące
 
 `npm run check` sprawdza składnię oraz testy automatyczne modułów, formularzy, migracji, plików wdrożeniowych, ticketów, embedów, planowania i dotychczasowej rekrutacji. Testy jednostkowe nie zastępują testu Discord API na serwerze ani sprawdzenia połączenia z prawdziwą bazą PostgreSQL. Wdrożenie Render, rejestracja komend Discord, OAuth2 i produkcyjna migracja danych nie zostały wykonane. Wymagają podłączenia właściwego repozytorium, sekretów, docelowej bazy i konfiguracji Discord Developer Portal.
 
-Obecne komendy rekrutacji, ekonomii, moderacji i pozostałe ustawienia starego panelu nadal korzystają z pojedynczego `GUILD_ID`. Rozszerzony system ticketów i zapisanych embedów rozróżnia serwery. Kreator embedów obsługuje teraz tytuł, opis, kolor, stopkę, obraz, podgląd, publikację, edycję istniejącej wiadomości, listę i usuwanie; szablony, przyciski użytkownika, import/export, harmonogram i cofanie wersji nie są jeszcze dostępne. W ticketach działają formularz 3 pól, limity, blacklist, przypisanie, transfer, uczestnicy, zamykanie/wznawianie, transkrypt do 1000 wiadomości, oceny, historia i podstawowe statystyki; edytor wielu kategorii/formularzy, przypomnienia, automatyczne zamykanie, CSV i raporty dzienne nie są jeszcze dostępne.
+Bot obsługuje wiele serwerów. `GUILD_ID` wskazuje główny serwer z dotychczasowymi danymi; kolejne mają oddzielną ekonomię, moderację, logi, weryfikację, auto kanały, statystyki i rekrutację. Rozszerzony system ticketów i zapisanych embedów rozróżnia serwery. Kreator embedów obsługuje teraz tytuł, opis, kolor, stopkę, obraz, podgląd, publikację, edycję istniejącej wiadomości, listę i usuwanie; szablony, przyciski użytkownika, import/export, harmonogram i cofanie wersji nie są jeszcze dostępne. W ticketach działają formularz 3 pól, limity, blacklist, przypisanie, transfer, uczestnicy, zamykanie/wznawianie, transkrypt do 1000 wiadomości, oceny, historia i podstawowe statystyki; edytor wielu kategorii/formularzy, przypomnienia, automatyczne zamykanie, CSV i raporty dzienne nie są jeszcze dostępne.
 
 ## Panel rekrutacji na Windows
 
@@ -225,3 +225,15 @@ Panel pokazuje liczniki i listę ostatnich podań bez odpowiedzi kandydatów; de
 Moduł Poziomy przyznaje domyślnie 15 XP za wiadomość (raz na 60 sekund) i 5 XP za pełną minutę rozmowy. Rozmowa wymaga co najmniej dwóch aktywnych osób; boty, AFK, wyciszenie i ogłuszenie są pomijane. Poziom wyznacza próg `100 × poziom²`. Czas offline nie jest doliczany.
 
 Komendy `/level [uzytkownik]`, `/ranking` i administracyjna `/poziomy-ustaw wlaczone` rejestrują się przy uruchomieniu bota. Panel `#module-poziomy` pozwala włączać źródła XP, zmieniać tempo oraz definiować maksymalnie 20 ról nagród. Bot wymaga Zarządzania rolami i wyższej roli niż nagroda. Role otrzymuje się przy następnej nagrodzie XP; wyłączenie modułu zachowuje postęp. Dane są przechowywane we wspólnym dokumencie features PostgreSQL, oddzielnie dla serwera.
+
+
+## Kilka serwerów Discord
+
+- Link `/invite` w panelu oraz komenda `/zapros` pozwalają dodać bota do kolejnego serwera. Zaproszenie prosi o uprawnienia używane przez moduły, bez uprawnienia Administrator.
+- Przy dołączeniu i po restarcie bot rejestruje komendy serwera. Każdy serwer ma własną instancję obsługi XP, formularzy, powitań i logów. Tickety i embedy nadal identyfikują dane przez `guildId`.
+- Nowe moduły serwerów zapisują się w `features.serverModules[ID]`. Główny serwer korzysta ze starych pól bez kopiowania ani kasowania danych. Poziomy, powitania i pomysły zachowują dotychczasowe mapy `guilds`.
+- Podania głównego serwera pozostają w dokumencie `applications`; inne serwery zapisują je w `applications:ID` i osobnych plikach `data/servers/ID/applications.json` przy pracy bez PostgreSQL. Nie należy udostępniać katalogu danych przez WWW.
+- Na nowym serwerze użyj `/rekrutacja-ustaw kanal:... rola:...` (opcjonalnie `obsluga` i `logi`), następnie `/rekrutacja-panel`. Formularze i potwierdzenia usuwania są oddzielne dla każdego serwera.
+- Po logowaniu w panelu wybierz serwer w menu po lewej. Lista zawiera tylko serwery z uprawnieniem Zarządzanie serwerem. Przy serwerach bez bota widoczna jest opcja dodania go. Po zmianie ról lub dołączeniu do nowego serwera zaloguj się ponownie, aby odświeżyć listę OAuth.
+- Każda operacja sprawdza aktualne uprawnienia na wybranym serwerze. Zmiana serwera w innej karcie wymaga odświeżenia starszej karty przed zapisem. Bot musi mieć własną rolę wyżej niż role, które nadaje lub moderuje.
+- W Discord Developer Portal aplikacja musi obsługiwać Guild Install. Jeżeli inne osoby mają zapraszać bota, właściciel aplikacji musi włączyć Public Bot. GUILD_ID i pozostałe dotychczasowe zmienne pozostają zgodne ze starszą konfiguracją.

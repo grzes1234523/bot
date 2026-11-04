@@ -10,6 +10,7 @@ import { welcomeSettings, configureWelcome, farewellSettings, configureFarewell 
 import { communitySettings, saveCommunitySettings, decideIdea } from './community.js';
 import { logSettings, logEvents, saveLogSettings } from './log-settings.js';
 import { readServerStatistics } from './server-statistics.js';
+import { guildStore, botInvite } from './guild-store.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -67,12 +68,12 @@ function hasManagePermission(permissions) {
   } catch { return false; }
 }
 
-export function startPanelServer({ client, getApplications, featureStore, discordMode = 'gateway', getWorkerStatus, refreshData, workerStatusTimeoutMs = 2000, refreshDataTimeoutMs = 2000 }) {
+export function startPanelServer({ client, getApplications: rootGetApplications, getGuildApplications, featureStore: rootFeatureStore, discordMode = 'gateway', getWorkerStatus, refreshData, workerStatusTimeoutMs = 2000, refreshDataTimeoutMs = 2000 }) {
   if (!['gateway', 'rest'].includes(discordMode)) throw new Error('Nieznany tryb połączenia panelu z Discordem.');
   const creatingLevelChannel = new Set();
   // The panel's REST access and the worker's Gateway connection are independent.
   const isDiscordAvailable = () => discordMode === 'rest' || client.isReady();
-  const connectionStatus = async () => {
+  const connectionStatus = async (guildId = PRIMARY_GUILD_ID) => {
     if (discordMode === 'gateway') {
       const ready = client.isReady();
       return { botReady: ready, discordReady: ready, botStatus: ready ? 'online' : 'offline', botLastSeen: null };
@@ -81,21 +82,29 @@ export function startPanelServer({ client, getApplications, featureStore, discor
     if (getWorkerStatus) {
       const unavailable = { botReady: null, botStatus: 'unavailable', botLastSeen: null };
       try {
-        worker = await withTimeout(getWorkerStatus, workerStatusTimeoutMs) ?? unavailable;
+        worker = await withTimeout(() => getWorkerStatus(guildId), workerStatusTimeoutMs) ?? unavailable;
       } catch { worker = unavailable; }
     }
     return { ...worker, discordReady: isDiscordAvailable() };
   };
-  const { CLIENT_ID = '', CLIENT_SECRET = '', GUILD_ID = '', PANEL_BASE_URL = 'http://localhost:3000', PANEL_SESSION_SECRET = '', PANEL_HOST = '127.0.0.1' } = process.env;
+  const { CLIENT_ID = '', CLIENT_SECRET = '', GUILD_ID: PRIMARY_GUILD_ID = '', PANEL_BASE_URL = 'http://localhost:3000', PANEL_SESSION_SECRET = '', PANEL_HOST = '127.0.0.1' } = process.env;
   const panelPort = Number(process.env.PORT || process.env.PANEL_PORT || 3000);
   const baseUrl = PANEL_BASE_URL.replace(/\/+$/, '');
   const redirectUri = `${baseUrl}/auth/discord/callback`;
-  const configReady = Boolean(CLIENT_ID && CLIENT_SECRET && GUILD_ID && PANEL_SESSION_SECRET.length >= 32);
+  const configReady = Boolean(CLIENT_ID && CLIENT_SECRET && PRIMARY_GUILD_ID && PANEL_SESSION_SECRET.length >= 32);
 
   const server = http.createServer(async (req, res) => {
     const requestUrl = new URL(req.url || '/', 'http://localhost');
     const route = requestUrl.pathname;
+    const sessionAtStart = configReady ? parseSession(req, PANEL_SESSION_SECRET) : null;
+    const GUILD_ID = sessionAtStart?.value.guildId || PRIMARY_GUILD_ID;
+    const featureStore = guildStore(rootFeatureStore, GUILD_ID, PRIMARY_GUILD_ID);
+    let selectedApplications;
+    const getApplications = () => selectedApplications ?? (GUILD_ID === PRIMARY_GUILD_ID ? rootGetApplications() : []);
     try {
+      if (req.method === 'GET' && route === '/invite') {
+        res.writeHead(302, { Location: botInvite(CLIENT_ID) }); return res.end();
+      }
       if (req.method === 'GET' && route === '/health') {
         return json(res, 200, { ok: true, ...await connectionStatus(), panelConfigured: configReady });
       }
@@ -137,10 +146,16 @@ export function startPanelServer({ client, getApplications, featureStore, discor
         if (!userResponse.ok || !guildsResponse.ok) throw new Error('Discord nie zwrócił danych konta i serwerów.');
         const user = await userResponse.json();
         const guilds = await guildsResponse.json();
-        const guild = guilds.find(item => item.id === GUILD_ID);
+        const manageableGuilds = guilds.filter(item => hasManagePermission(item.permissions)).map(item => ({ id: item.id, name: item.name }));
+        let botIds = new Set(client.guilds.cache.keys());
+        if (discordMode === 'rest' && client.guilds.fetch) botIds = new Set((await client.guilds.fetch()).keys());
+        const selected = manageableGuilds.find(item => item.id === PRIMARY_GUILD_ID && botIds.has(item.id)) ?? manageableGuilds.find(item => botIds.has(item.id));
+        if (selected && !client.guilds.cache.has(selected.id) && client.guilds.fetch) await client.guilds.fetch(selected.id);
+        const selectedGuild = selected ? client.guilds.cache.get(selected.id) : null;
+        if (selectedGuild?.channels?.fetch && selectedGuild?.roles?.fetch) await Promise.all([selectedGuild.channels.fetch(), selectedGuild.roles.fetch()]);
         const newId = crypto.randomBytes(32).toString('hex');
         sessions.delete(current.id);
-        sessions.set(newId, { createdAt: Date.now(), user: { id: user.id, username: user.global_name || user.username }, canManage: Boolean(guild && hasManagePermission(guild.permissions)) });
+        sessions.set(newId, { createdAt: Date.now(), user: { id: user.id, username: user.global_name || user.username }, guildId: selected?.id || PRIMARY_GUILD_ID, manageableGuilds, botGuildIds: [...botIds], canManage: Boolean(selected) });
         setSessionCookie(res, newId, PANEL_SESSION_SECRET, baseUrl);
         res.writeHead(302, { Location: '/' });
         return res.end();
@@ -155,14 +170,43 @@ export function startPanelServer({ client, getApplications, featureStore, discor
 
       if ((req.method === 'GET' || req.method === 'POST') && route.startsWith('/api/')) {
         const current = configReady ? parseSession(req, PANEL_SESSION_SECRET) : null;
+        if (route === '/api/guilds') {
+          if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
+          if (req.method === 'GET') {
+            let botIds = new Set(client.guilds.cache.keys());
+            if (discordMode === 'rest' && client.guilds.fetch) botIds = new Set((await client.guilds.fetch()).keys());
+            current.value.botGuildIds = [...botIds];
+            return json(res, 200, { selected: GUILD_ID, guilds: (current.value.manageableGuilds ?? []).map(guild => ({ ...guild, installed: botIds.has(guild.id), invite: botInvite(CLIENT_ID, guild.id) })) });
+          }
+          if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
+          const body = await readJson(req), id = String(body.guildId ?? '');
+          if (!(current.value.manageableGuilds ?? []).some(guild => guild.id === id)) return json(res, 403, { error: 'Nie zarządzasz tym serwerem. Zaloguj się ponownie po zmianie uprawnień.' });
+          const guild = client.guilds.cache.get(id) ?? await client.guilds.fetch?.(id).catch(() => null);
+          if (!guild) return json(res, 400, { error: 'Najpierw dodaj bota do tego serwera.' });
+          const member = await guild.members.fetch({ user: current.value.user.id, force: true }).catch(() => null);
+          if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) return json(res, 403, { error: 'Nie masz już uprawnienia Zarządzanie serwerem.' });
+          await Promise.all([guild.channels.fetch(), guild.roles.fetch()]);
+          current.value.guildId = id; current.value.canManage = true;
+          return json(res, 200, { ok: true, guildId: id });
+        }
+        if (current?.value.user && req.headers['x-guild-id'] && req.headers['x-guild-id'] !== GUILD_ID) return json(res, 409, { error: 'Serwer został zmieniony w innej karcie. Odśwież stronę przed zapisaniem.' });
+        if (current?.value.user && current.value.canManage && client.guilds.cache.get(GUILD_ID)?.members?.fetch) {
+          const guild = client.guilds.cache.get(GUILD_ID);
+          const member = await guild.members.fetch({ user: current.value.user.id, force: true }).catch(() => null);
+          if (!member?.permissions.has(PermissionFlagsBits.ManageGuild)) { current.value.canManage = false; return json(res, 403, { error: 'Brak uprawnienia Zarządzanie serwerem. Zaloguj się ponownie po zmianie uprawnień.' }); }
+        }
         if (route === '/api/session') {
           if (!current?.value.user) return json(res, 401, { authenticated: false, configured: configReady });
           const guild = client.guilds.cache.get(GUILD_ID);
-          return json(res, 200, { authenticated: true, user: current.value.user, canManage: current.value.canManage, ...await connectionStatus(), guildName: guild?.name || process.env.SERVER_DISPLAY_NAME || 'Strefa Gry i Rozrywki', guildIcon: guild?.iconURL({ size: 128 }) || null });
+          return json(res, 200, { authenticated: true, user: current.value.user, canManage: current.value.canManage, guildId: GUILD_ID, ...await connectionStatus(GUILD_ID), guildName: guild?.name || 'Serwer Discord', guildIcon: guild?.iconURL({ size: 128 }) || null });
         }
         if (current?.value.user && current.value.canManage && refreshData) {
           try { await withTimeout(refreshData, refreshDataTimeoutMs); }
           catch { return json(res, 503, { error: 'Nie można odświeżyć danych ze wspólnej bazy. Spróbuj ponownie za chwilę.' }); }
+        }
+        if (current?.value.user && current.value.canManage && getGuildApplications && ['/api/recruitment', '/api/statistics'].includes(route)) {
+          try { selectedApplications = await withTimeout(() => getGuildApplications(GUILD_ID), refreshDataTimeoutMs); }
+          catch { return json(res, 503, { error: 'Nie można pobrać rekrutacji tego serwera.' }); }
         }
         if (req.method === 'POST' && current?.value.user && current.value.canManage && req.headers.origin === new URL(baseUrl).origin) {
           const actor = { id: current.value.user.id, name: current.value.user.username };
@@ -183,7 +227,7 @@ export function startPanelServer({ client, getApplications, featureStore, discor
             catch (error) { return json(res, 400, { error: error.message }); }
           }
           const state = featureStore.snapshot(), channels = await guild.channels.fetch();
-          return json(res, 200, { settings: logSettings(state), channelId: state.logChannelId || process.env.LOG_CHANNEL_ID || null, eventTypes: logEvents, entries: (state.botLogs ?? []).filter(entry => entry.guildId === GUILD_ID).slice(-100).reverse(), categories: channels.filter(c => c?.type === ChannelType.GuildCategory).map(c => ({ id:c.id,name:c.name })), channels: channels.filter(c => c && [ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(c.type)).map(c => ({ id:c.id,name:c.name,categoryId:c.parentId })) });
+          return json(res, 200, { settings: logSettings(state), channelId: state.logChannelId || (GUILD_ID === PRIMARY_GUILD_ID ? process.env.LOG_CHANNEL_ID : null) || null, eventTypes: logEvents, entries: (state.botLogs ?? []).filter(entry => entry.guildId === GUILD_ID).slice(-100).reverse(), categories: channels.filter(c => c?.type === ChannelType.GuildCategory).map(c => ({ id:c.id,name:c.name })), channels: channels.filter(c => c && [ChannelType.GuildText,ChannelType.GuildAnnouncement].includes(c.type)).map(c => ({ id:c.id,name:c.name,categoryId:c.parentId })) });
         }
         if (route === '/api/community' || route === '/api/activity') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
@@ -363,9 +407,9 @@ export function startPanelServer({ client, getApplications, featureStore, discor
             return { id: channel.id, name: channel.name, type: text ? 'tekstowy' : 'głosowy', parentName: channel.parent?.name ?? 'Bez kategorii', slowmode: channel.rateLimitPerUser ?? 0, accessible, canSend };
           }).sort((a, b) => a.parentName.localeCompare(b.parentName, 'pl') || a.name.localeCompare(b.name, 'pl'));
           return json(res, 200, {
-            server: { id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }), memberCount: guild.memberCount ?? 0 },
+            server: { id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }), memberCount: readServerStatistics(featureStore.snapshot().serverStatistics, GUILD_ID)?.members ?? guild.memberCount ?? 0 },
             channels: channelList,
-            counts: { servers: 1, channels: channelList.length, ready: channelList.filter(channel => channel.canSend).length, needsAttention: channelList.filter(channel => !channel.accessible).length },
+            counts: { servers: (current.value.manageableGuilds ?? []).filter(item => (current.value.botGuildIds ?? []).includes(item.id)).length || 1, channels: channelList.length, ready: channelList.filter(channel => channel.canSend).length, needsAttention: channelList.filter(channel => !channel.accessible).length },
           });
         }
         if (route === '/api/moderation/settings') {
@@ -551,7 +595,8 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           if (!guild) return json(res, 503, { error: 'Bot nie ma dostępu do skonfigurowanego serwera.' });
           if (req.method === 'GET') {
             const [channels, roles] = await Promise.all([guild.channels.fetch(), guild.roles.fetch()]);
-            const state = featureStore.snapshot().tickets;
+            const raw = featureStore.snapshot().tickets;
+          const state = { ...raw, ...(GUILD_ID === PRIMARY_GUILD_ID ? {} : { categoryId: null, supportRoleId: null }), ...(raw.guildSettings?.[GUILD_ID] ?? {}), panels: (raw.panels ?? []).filter(panel => (panel.guildId || PRIMARY_GUILD_ID) === GUILD_ID) };
             const panels = (state.panels ?? []).map(panel => ({ ...panel, channelName: channels.get(panel.channelId)?.name ?? panel.channelName ?? 'brak kanału', supportRoleName: roles.get(panel.supportRoleId)?.name ?? null }));
             return json(res, 200, {
               panels,
@@ -564,7 +609,8 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
           const body = await readJson(req);
           if (!body || typeof body !== 'object' || Array.isArray(body)) return json(res, 400, { error: 'Nieprawidłowe dane panelu.' });
-          const state = featureStore.snapshot().tickets;
+          const raw = featureStore.snapshot().tickets;
+          const state = { ...raw, ...(GUILD_ID === PRIMARY_GUILD_ID ? {} : { categoryId: null, supportRoleId: null }), ...(raw.guildSettings?.[GUILD_ID] ?? {}), panels: (raw.panels ?? []).filter(panel => (panel.guildId || PRIMARY_GUILD_ID) === GUILD_ID) };
           const existing = (state.panels ?? []).find(panel => panel.messageId === String(body.panelId ?? ''));
           const action = String(body.action ?? 'publish');
           if (['publish', 'duplicate', 'resend'].includes(action) && (state.panels ?? []).length >= 10) return json(res, 400, { error: 'Osiągnięto limit 10 paneli ticketów.' });
@@ -604,13 +650,13 @@ export function startPanelServer({ client, getApplications, featureStore, discor
             if (!message) return json(res, 404, { error: 'Wiadomość panelu nie istnieje. Użyj opcji Wyślij ponownie.' });
             await message.edit(payload);
             const updated = { ...existing, title, description, buttonLabel, categoryId, supportRoleId, channelName: channel.name };
-            await featureStore.update(data => { data.tickets.panels = (data.tickets.panels ?? []).map(panel => panel.messageId === existing.messageId ? updated : panel); data.tickets.categoryId = categoryId; data.tickets.supportRoleId = supportRoleId; });
+            await featureStore.update(data => { data.tickets.panels = (data.tickets.panels ?? []).map(panel => panel.messageId === existing.messageId ? updated : panel); data.tickets.guildSettings ??= {}; data.tickets.guildSettings[GUILD_ID] = { ...(data.tickets.guildSettings[GUILD_ID] ?? {}), categoryId, supportRoleId }; if (GUILD_ID === PRIMARY_GUILD_ID) { data.tickets.categoryId = categoryId; data.tickets.supportRoleId = supportRoleId; } });
             return json(res, 200, { ok: true, panel: updated });
           }
           if (!['publish', 'duplicate', 'resend', 'move'].includes(action)) return json(res, 400, { error: 'Nieznana akcja panelu.' });
           if (['duplicate', 'resend', 'move'].includes(action) && !existing) return json(res, 404, { error: 'Nie znaleziono panelu ticketów.' });
           const message = await channel.send(payload);
-          const created = { messageId: message.id, channelId: channel.id, channelName: channel.name, categoryId, supportRoleId, title, description, buttonLabel, createdAt: new Date().toISOString() };
+          const created = { guildId: GUILD_ID, messageId: message.id, channelId: channel.id, channelName: channel.name, categoryId, supportRoleId, title, description, buttonLabel, createdAt: new Date().toISOString() };
           if (action === 'move') {
             const oldChannel = await guild.channels.fetch(existing.channelId).catch(() => null);
             const oldMessage = oldChannel?.isTextBased() ? await oldChannel.messages.fetch(existing.messageId).catch(() => null) : null;
@@ -622,8 +668,9 @@ export function startPanelServer({ client, getApplications, featureStore, discor
           await featureStore.update(data => {
             const panels = data.tickets.panels ?? [];
             data.tickets.panels = action === 'move' ? [...panels.filter(panel => panel.messageId !== existing.messageId), created] : [...panels, created];
-            data.tickets.categoryId = categoryId;
-            data.tickets.supportRoleId = supportRoleId;
+            data.tickets.guildSettings ??= {};
+            data.tickets.guildSettings[GUILD_ID] = { ...(data.tickets.guildSettings[GUILD_ID] ?? {}), categoryId, supportRoleId };
+            if (GUILD_ID === PRIMARY_GUILD_ID) { data.tickets.categoryId = categoryId; data.tickets.supportRoleId = supportRoleId; }
           });
           return json(res, 200, { ok: true, panel: created });
         }

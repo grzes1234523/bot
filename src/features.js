@@ -16,10 +16,12 @@ import {
 import { logSettings } from './log-settings.js';
 import { clearMessages, clearMessagesCommand } from './clear-messages.js';
 import { collectServerStatistics } from './server-statistics.js';
+import { botInvite } from './guild-store.js';
 const command = name => new SlashCommandBuilder().setName(name);
 const adminCommand = name => command(name);
 
 export const featureCommands = [
+  command('zapros').setDescription('Pokazuje link do dodania StrefaBota na inny serwer.'),
   clearMessagesCommand,
   command('statystyki').setDescription('Pokazuje statystyki serwera, rekrutacji i ekonomii.'),
   adminCommand('statystyki-kanaly').setDescription('Tworzy lub odświeża kanały ze statystykami serwera.'),
@@ -383,6 +385,7 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
   }
 
   async function command(interaction) {
+    if (interaction.commandName === 'zapros') return reply(interaction, `Dodaj bota na inny serwer: ${botInvite(cfg.clientId)}`);
     if (interaction.commandName === 'wyczysc') return clearMessages(interaction, { guildId: cfg.guildId, log });
     const name = interaction.commandName;
     if (name.startsWith('ekonomia-')) return economyCommand(interaction, name);
@@ -531,8 +534,14 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
       const category = interaction.options.getChannel('kategoria');
       const supportRole = interaction.options.getRole('obsluga');
       await featureStore.update(state => {
-        if (category) state.tickets.categoryId = category.id;
-        if (supportRole) state.tickets.supportRoleId = supportRole.id;
+        state.tickets.guildSettings ??= {};
+        const settings = state.tickets.guildSettings[interaction.guildId] ??= {};
+        if (category) settings.categoryId = category.id;
+        if (supportRole) settings.supportRoleId = supportRole.id;
+        if (!cfg.primaryGuildId || interaction.guildId === cfg.primaryGuildId) {
+          if (category) state.tickets.categoryId = category.id;
+          if (supportRole) state.tickets.supportRoleId = supportRole.id;
+        }
       });
       const button = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('strefa:ticket-pro:open').setLabel('Utwórz ticket').setEmoji('🎫').setStyle(ButtonStyle.Primary));
       const message = await interaction.channel.send({
@@ -541,7 +550,8 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
       });
       await featureStore.update(state => {
         state.tickets.panels ??= [];
-        state.tickets.panels.push({ messageId: message.id, channelId: interaction.channelId, channelName: interaction.channel.name || 'kanał', categoryId: category?.id ?? state.tickets.categoryId, supportRoleId: supportRole?.id ?? state.tickets.supportRoleId, title: '🎫 Centrum ticketów', description: 'Kliknij przycisk, aby utworzyć prywatny kanał i skontaktować się z obsługą.', buttonLabel: 'Utwórz ticket', createdAt: new Date().toISOString() });
+        const defaults = state.tickets.guildSettings?.[interaction.guildId] ?? ((!cfg.primaryGuildId || interaction.guildId === cfg.primaryGuildId) ? state.tickets : {});
+        state.tickets.panels.push({ guildId: interaction.guildId, messageId: message.id, channelId: interaction.channelId, channelName: interaction.channel.name || 'kanał', categoryId: category?.id ?? defaults.categoryId, supportRoleId: supportRole?.id ?? defaults.supportRoleId, title: '🎫 Centrum ticketów', description: 'Kliknij przycisk, aby utworzyć prywatny kanał i skontaktować się z obsługą.', buttonLabel: 'Utwórz ticket', createdAt: new Date().toISOString() });
       });
       await log(interaction.guild, '🎫 Panel ticketów', `Opublikował: <@${interaction.user.id}>\nWiadomość: ${message.url}`);
       return reply(interaction, `✅ Panel ticketów opublikowano: ${message.url}`);

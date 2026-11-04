@@ -17,9 +17,12 @@ export class ApplicationStore {
   #data = {};
   #queue = Promise.resolve();
   #database = false;
+  #documentKey;
 
-  constructor(filename) {
+  constructor(filename, { documentKey = 'applications' } = {}) {
     this.#file = filename;
+    if (!/^applications(?::\d{17,20})?$/.test(documentKey)) throw new Error('Nieprawidłowy klucz bazy podań.');
+    this.#documentKey = documentKey;
   }
 
   async init() {
@@ -37,7 +40,7 @@ export class ApplicationStore {
       this.#data = {};
     }
     this.#database = await databaseEnabled();
-    if (this.#database) this.#data = await loadDocument('applications', this.#data);
+    if (this.#database) this.#data = await loadDocument(this.#documentKey, this.#data);
   }
 
   get(id) {
@@ -53,7 +56,7 @@ export class ApplicationStore {
   async refresh() {
     const task = this.#queue.then(async () => {
       if (this.#database) {
-        const fresh = await refreshDocument('applications');
+        const fresh = await refreshDocument(this.#documentKey);
         if (fresh) this.#data = fresh;
       }
       return this.list();
@@ -132,7 +135,7 @@ export class ApplicationStore {
   async #transact(change) {
     const task = this.#queue.then(async () => {
       if (this.#database) {
-        const updated = await updateDocument('applications', this.#data, change);
+        const updated = await updateDocument(this.#documentKey, this.#data, change);
         this.#data = updated.state;
         return updated.result;
       }

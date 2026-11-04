@@ -17,7 +17,7 @@ function fixture({sessionHangs=false}={}) {
 test('status połączenia pojawia się bez oczekiwania na moduł i pobierany jest tylko widoczny moduł',async()=>{
   const f=fixture();await sleep(10);
   assert.match(f.element('status').textContent,/Bot jest online/);
-  assert.deepEqual(f.requests,['/api/session','/api/server-control']);
+  assert.deepEqual(f.requests,['/api/session','/api/guilds','/api/server-control']);
   await sleep(60);assert.match(f.element('moduleLoadNotice').textContent,/Przekroczono czas/);
   assert.match(f.element('status').textContent,/Bot jest online/);
 });

@@ -37,6 +37,7 @@
   <header><b>🎮 STREFA <span>GRY I ROZRYWKI</span></b><div class="row"><span id="user" class="muted"></span><button id="logout" class="button secondary hidden">Wyloguj</button></div></header>
   <aside class="module-sidebar" aria-label="Nawigacja serwera i modułów">
     <div class="server-card"><div id="serverIcon" class="server-icon" aria-hidden="true">S</div><div class="server-meta"><div id="serverName" class="server-name">Strefa Gry i Rozrywki</div><div class="server-subtitle">♟ Panel zarządzania botem</div></div></div>
+    <label class="economy-field" style="margin:12px 0">Serwer<select id="guildPicker" aria-label="Wybierz serwer"></select></label><a class="button secondary" href="/invite" target="_blank" rel="noopener">＋ Dodaj bota na serwer</a><p id="guildPickerNotice" class="muted" role="status"></p>
     <label class="sidebar-search"><span class="sidebar-search-icon" aria-hidden="true">⌕</span><input id="moduleSearch" type="search" placeholder="Szukaj..." aria-label="Szukaj modułu"></label>
     <div class="sidebar-title">ZARZĄDZANIE SERWEREM</div>
     <nav id="moduleNav">
@@ -78,8 +79,9 @@
   <dialog id="ticketEditor" class="ticket-dialog"><form id="ticketForm" class="ticket-form"><h2 id="ticketFormTitle">Nowy panel ticketów</h2><p class="muted" style="margin:0">Ustaw treść panelu, miejsce publikacji i kanał dla nowych zgłoszeń.</p><label class="economy-field">Tytuł<input id="ticketTitle" maxlength="256" required></label><label class="economy-field">Opis<textarea id="ticketDescription" maxlength="3500" required></textarea></label><label class="economy-field">Etykieta przycisku<input id="ticketButtonLabel" maxlength="80" required></label><label class="economy-field">Kanał publikacji<select id="ticketChannel" required></select></label><label class="economy-field">Kategoria tworzonych ticketów<select id="ticketCategory"><option value="">Użyj kategorii ustawionej komendą /tickets-panel</option></select></label><label class="economy-field">Rola obsługi<select id="ticketRole"><option value="">Użyj roli ustawionej komendą /tickets-panel</option></select></label><div class="ticket-form-note">Bot potrzebuje dostępu do wybranego kanału publikacji.</div><div id="ticketFormMessage" class="tickets-message" role="status"></div><div class="ticket-form-actions"><button type="button" id="ticketCancel" class="button secondary">Anuluj</button><button type="submit" class="button">Zapisz panel</button></div></form></dialog>
   <script>
     // PANEL_REQUEST_START
+    let activeGuildId='';
     const originalPanelFetch=window.fetch.bind(window);
-    const fetch=async(input,options={})=>{const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),options.method==='POST'?25000:12000);try{return await originalPanelFetch(input,{...options,signal:controller.signal});}catch(error){if(controller.signal.aborted)throw new Error('Przekroczono czas oczekiwania na panel. Spróbuj ponownie.');throw error;}finally{clearTimeout(timeout);}};
+    const fetch=async(input,options={})=>{const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),options.method==='POST'?25000:12000);try{return await originalPanelFetch(input,{...options,headers:{...options.headers,...(activeGuildId?{'X-Guild-ID':activeGuildId}:{})},signal:controller.signal});}catch(error){if(controller.signal.aborted)throw new Error('Przekroczono czas oczekiwania na panel. Spróbuj ponownie.');throw error;}finally{clearTimeout(timeout);}};
     // PANEL_REQUEST_END
 
     const $=id=>document.getElementById(id), labels={pending:'Oczekujące',accepted:'Zaakceptowane',rejected:'Odrzucone',closed:'Zamknięte'};
@@ -92,6 +94,18 @@
       const messages={offline:'Bot jest wyłączony lub ponownie łączy się z Discordem.',stale:'Brak aktualnego sygnału od bota.'+seen,unknown:'Panel nie otrzymał jeszcze sygnału od bota. Sprawdź, czy obie usługi używają wspólnej bazy i tych samych danych aplikacji Discord.',unavailable:'Nie można teraz odczytać stanu bota ze wspólnej bazy.',configuration_mismatch:'Panel i bot mają różne ustawienia aplikacji Discord.'};
       setStatus(messages[state]||messages.unknown,state==='unknown'?'':'bad');
     }
+    async function loadGuildPicker(){
+      const response=await fetch('/api/guilds',{credentials:'same-origin'});const data=await response.json();
+      if(!response.ok)throw new Error(data.error||'Nie można pobrać serwerów.');
+      $('guildPicker').innerHTML='<option value="">Wybierz serwer…</option>'+data.guilds.map(g=>`<option value="${escapeHtml(g.id)}" data-invite="${escapeHtml(g.invite)}" data-installed="${g.installed}">${escapeHtml(g.name)}${g.installed?'':' — dodaj bota'}</option>`).join('');
+      $('guildPicker').value=data.selected;
+    }
+    $('guildPicker').addEventListener('change',async()=>{
+      const picker=$('guildPicker'),option=picker.selectedOptions[0];if(!picker.value)return;
+      if(option.dataset.installed!=='true'){$('guildPickerNotice').textContent='Najpierw dodaj bota do tego serwera.';const link=document.createElement('a');link.href=option.dataset.invite;link.target='_blank';link.rel='noopener';link.textContent='Dodaj bota →';$('guildPickerNotice').appendChild(link);return;}
+      picker.disabled=true;
+      try{const response=await fetch('/api/guilds',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({guildId:picker.value})});const data=await response.json();if(!response.ok)throw new Error(data.error);location.reload();}catch(error){$('guildPickerNotice').textContent=error.message;picker.disabled=false;}
+    });
     async function loadRecruitment(){
       const response=await fetch('/api/recruitment',{credentials:'same-origin'});
       const data=await response.json();if(!response.ok)throw new Error(data.error||'Nie można pobrać podsumowania.');
@@ -152,7 +166,7 @@
         const response=await fetch('/api/session',{credentials:'same-origin'});
         if(response.status===401){const info=await response.json();if(!info.configured){setStatus('Panel API działa, ale brakuje CLIENT_SECRET lub PANEL_SESSION_SECRET w pliku .env. Uzupełnij je i uruchom ponownie bota.','bad');return;}document.body.classList.add('landing-active');$('landing').classList.remove('hidden');return;}
         if(!response.ok)throw new Error('Nie można sprawdzić sesji panelu.');
-        const session=await response.json();document.body.classList.add('dashboard-layout');$('user').textContent=session.user.username;$('serverName').textContent=session.guildName||'Serwer Discord';if(session.guildIcon){const icon=document.createElement('img');icon.src=session.guildIcon;icon.alt='';$('serverIcon').replaceChildren(icon);}else{$('serverIcon').textContent=(session.guildName||'S').trim().charAt(0).toUpperCase();}$('logout').classList.remove('hidden');
+        const session=await response.json();activeGuildId=session.guildId||'';void loadGuildPicker().catch(error=>{$('guildPickerNotice').textContent=error.message;});document.body.classList.add('dashboard-layout');$('user').textContent=session.user.username;$('serverName').textContent=session.guildName||'Serwer Discord';if(session.guildIcon){const icon=document.createElement('img');icon.src=session.guildIcon;icon.alt='';$('serverIcon').replaceChildren(icon);}else{$('serverIcon').textContent=(session.guildName||'S').trim().charAt(0).toUpperCase();}$('logout').classList.remove('hidden');
         if(!session.canManage){setStatus('Zalogowano, ale to konto nie ma uprawnienia Zarządzanie serwerem na serwerze bota.','bad');return;}
         if(!(session.discordReady??session.botReady)){setStatus('Panel nie ma obecnie połączenia z serwerem Discord.','bad');return;}
         panelAuthenticated=true;$('dashboard').classList.remove('hidden');showConnectionStatus(session);

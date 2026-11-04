@@ -407,8 +407,8 @@ export function createProSystem({ client, featureStore, cfg }) {
         const title = interaction.options.getString('tytul')?.trim() || '🎫 Centrum pomocy';
         const description = interaction.options.getString('opis')?.trim() || 'Wybierz przycisk, wypełnij krótki formularz, a prywatny kanał zgłoszenia zostanie utworzony.';
         const guildSettings = featureStore.snapshot().tickets.guildSettings?.[interaction.guildId] ?? {};
-        const categoryId = category?.id ?? guildSettings.categoryId ?? featureStore.snapshot().tickets.categoryId;
-        const supportRoleId = role?.id ?? guildSettings.supportRoleId ?? featureStore.snapshot().tickets.supportRoleId;
+        const categoryId = category?.id ?? guildSettings.categoryId ?? (interaction.guildId === cfg.guildId ? featureStore.snapshot().tickets.categoryId : null);
+        const supportRoleId = role?.id ?? guildSettings.supportRoleId ?? (interaction.guildId === cfg.guildId ? featureStore.snapshot().tickets.supportRoleId : null);
         const categories = guildSettings.categories?.filter(item => item.active !== false) ?? [];
         const panelConfig = { guildId: interaction.guildId, channelId: channel.id, channelName: channel.name, categoryId, supportRoleId, title, description, buttonLabel: 'Otwórz zgłoszenie', createdAt: new Date().toISOString(), active: true };
         const message = await channel.send(ticketPanelPayload(panelConfig, []));
