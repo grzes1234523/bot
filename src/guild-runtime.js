@@ -31,7 +31,7 @@ export function createGuildRuntimes({ client, cfg, featureStore, applicationStor
         levels: createLevelSystem({ client, featureStore: scoped, guildId }),
         welcome: createWelcomeSystem({ featureStore: scoped, guildId }),
         farewell: createFarewellSystem({ featureStore: scoped, guildId }),
-        community: createCommunitySystem({ featureStore: scoped, guildId }),
+        community: createCommunitySystem({ client, featureStore: scoped, guildId }),
       });
     }
     return runtimes.get(guildId);

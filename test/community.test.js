@@ -15,7 +15,7 @@ function fixture() {
 }
 test('komendy zabaw i pomysłów mają poprawne opcje', () => {
   assert.deepEqual(communityCommands.map(c => c.toJSON().name), ['zabawa','pomysl']);
-  assert.equal(communityCommands[0].toJSON().options.length, 2);
+  assert.equal(communityCommands[0].toJSON().options.length, 3);
 });
 test('konfiguracja odrzuca kanał w innej kategorii', async () => {
   const f = fixture();f.channel.parentId = 'inna';

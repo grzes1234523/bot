@@ -88,7 +88,8 @@ client.once(Events.ClientReady, async ready => {
   shutdownTimers.add(statsTimer);
   statsTimer.unref?.();
   await proSystem.maintenance().catch(error => reportFailure('Nie udało się wznowić automatyzacji ticketów i publikacji', error));
-  const maintenanceTimer = setInterval(() => proSystem.maintenance().catch(error => reportFailure('Automatyzacja ticketów nie powiodła się', error)), 60_000);
+  await communitySystem.tick().catch(error => reportFailure('Nie udało się wznowić gier', error));
+  const maintenanceTimer = setInterval(() => Promise.all([proSystem.maintenance(), communitySystem.tick()]).catch(error => reportFailure('Automatyzacja ticketów lub gier nie powiodła się', error)), 60_000);
   shutdownTimers.add(maintenanceTimer);
   maintenanceTimer.unref?.();
   if (await databaseEnabled()) {

@@ -237,3 +237,12 @@ Komendy `/level [uzytkownik]`, `/ranking` i administracyjna `/poziomy-ustaw wlac
 - Po logowaniu w panelu wybierz serwer w menu po lewej. Lista zawiera tylko serwery z uprawnieniem Zarządzanie serwerem. Przy serwerach bez bota widoczna jest opcja dodania go. Po zmianie ról lub dołączeniu do nowego serwera zaloguj się ponownie, aby odświeżyć listę OAuth.
 - Każda operacja sprawdza aktualne uprawnienia na wybranym serwerze. Zmiana serwera w innej karcie wymaga odświeżenia starszej karty przed zapisem. Bot musi mieć własną rolę wyżej niż role, które nadaje lub moderuje.
 - W Discord Developer Portal aplikacja musi obsługiwać Guild Install. Jeżeli inne osoby mają zapraszać bota, właściciel aplikacji musi włączyć Public Bot. GUILD_ID i pozostałe dotychczasowe zmienne pozostają zgodne ze starszą konfiguracją.
+
+
+## Milionerzy w module Zabawy
+
+Komenda `/zabawa milionerzy` rozpoczyna publiczną grę jednego gracza. Jest 12 pytań z odpowiedziami A–D i rosnącą trudnością, losowanych bez powtórzeń z 36 autorskich pytań. Drabinka wynosi 500, 1 000, 2 000, 5 000, 10 000, 20 000, 40 000, 75 000, 125 000, 250 000, 500 000 i 1 000 000 punktów. Progi gwarantowane to 1 000 i 40 000 punktów. Błąd lub upływ czasu zostawia gwarantowaną wygraną; przycisk Zakończ pozwala odejść z aktualną wygraną. Wynik gry nie zmienia salda ekonomii.
+
+Koła 50:50 i Zmiana pytania działają po jednym razie na grę. Zmiana zachowuje poziom trudności; jeżeli na bieżącym pytaniu użyto 50:50, nowe pytanie też ma dwie aktywne odpowiedzi. Na pytanie jest 5 minut. Koła rozpoczynają nowy czas na odpowiedź. Bot sprawdza wygasłe gry co minutę oraz po restarcie. Przyciski działają tylko dla autora, kanału i wiadomości danej gry, z kontrolą wersji przeciw wielokrotnemu klikaniu.
+
+Stan pytań, kół i wyniku jest trwale zapisany w `community.guilds[ID].millionaires`, osobno dla każdego serwera. Limit to jedna aktywna gra na osobę i 50 równoległych gier na serwerze. Zachowywanych jest do 200 ostatnich zakończonych gier obok aktywnych. Panel Zabawy pozwala wyłączyć Milionerów i pokazuje liczbę rozpoczętych gier, aktywnych rozgrywek oraz zdobytych milionów. Endpoint panelu zwraca tylko podsumowanie, bez poprawnych odpowiedzi.

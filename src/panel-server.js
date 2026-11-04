@@ -11,6 +11,7 @@ import { communitySettings, saveCommunitySettings, decideIdea } from './communit
 import { logSettings, logEvents, saveLogSettings } from './log-settings.js';
 import { readServerStatistics } from './server-statistics.js';
 import { guildStore, botInvite } from './guild-store.js';
+import { millionaireSummary } from './millionaires.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -249,7 +250,7 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
             } catch (error) { return json(res, 400, { error: error.message }); }
           }
           const state = featureStore.snapshot(), channels = await guild.channels.fetch();
-          return json(res, 200, { settings: communitySettings(state, GUILD_ID), ideas: (state.community?.guilds?.[GUILD_ID]?.ideas ?? []).slice(-100).reverse().map(idea => ({ ...idea, votes: { yes: Object.values(idea.votes).filter(v => v === 'yes').length, no: Object.values(idea.votes).filter(v => v === 'no').length } })), categories: channels.filter(c => c?.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })), channels: channels.filter(c => c && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(c.type)).map(c => ({ id: c.id, name: c.name, categoryId: c.parentId })) });
+          return json(res, 200, { settings: communitySettings(state, GUILD_ID), millionaires: millionaireSummary(state, GUILD_ID), ideas: (state.community?.guilds?.[GUILD_ID]?.ideas ?? []).slice(-100).reverse().map(idea => ({ ...idea, votes: { yes: Object.values(idea.votes).filter(v => v === 'yes').length, no: Object.values(idea.votes).filter(v => v === 'no').length } })), categories: channels.filter(c => c?.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })), channels: channels.filter(c => c && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(c.type)).map(c => ({ id: c.id, name: c.name, categoryId: c.parentId })) });
         }
         if (route === '/api/welcome' || route === '/api/farewell') {
           const settingsFor = route === '/api/farewell' ? farewellSettings : welcomeSettings;

@@ -1,16 +1,18 @@
 import crypto from 'node:crypto';
+import { createMillionairesSystem } from './millionaires.js';
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 
-export const communityDefaults = { gamesEnabled: true, ideasEnabled: true, categoryId: null, ideasChannelId: null };
+export const communityDefaults = { gamesEnabled: true, millionairesEnabled: true, ideasEnabled: true, categoryId: null, ideasChannelId: null };
 export const communitySettings = (state, guildId) => ({ ...communityDefaults, ...(state.community?.guilds?.[guildId]?.settings ?? {}) });
 export function communityGuild(state, guildId) {
   state.community ??= { guilds: {} }; state.community.guilds ??= {};
   return state.community.guilds[guildId] ??= { settings: { ...communityDefaults }, ideas: [], quizzes: [], draws: 0 };
 }
 export const communityCommands = [
-  new SlashCommandBuilder().setName('zabawa').setDescription('Zabawy serwerowe: losowanie i quiz.')
+  new SlashCommandBuilder().setName('zabawa').setDescription('Zabawy serwerowe: losowanie, quiz i Milionerzy.')
     .addSubcommand(s => s.setName('losuj').setDescription('Losuje jedną z podanych opcji.').addStringOption(o => o.setName('opcje').setDescription('Oddziel opcje przecinkami (2–20 opcji)').setRequired(true).setMaxLength(1000)))
-    .addSubcommand(s => s.setName('quiz').setDescription('Rozpoczyna quiz z czterema odpowiedziami.')),
+    .addSubcommand(s => s.setName('quiz').setDescription('Rozpoczyna quiz z czterema odpowiedziami.'))
+    .addSubcommand(s => s.setName('milionerzy').setDescription('12 pytań, koła ratunkowe i milion punktów do zdobycia.')),
   new SlashCommandBuilder().setName('pomysl').setDescription('Zgłasza pomysł do głosowania społeczności.')
     .addStringOption(o => o.setName('tresc').setDescription('Opisz propozycję (10–1500 znaków)').setRequired(true).setMinLength(10).setMaxLength(1500)),
 ];
@@ -41,7 +43,8 @@ export async function saveCommunitySettings({ guild, featureStore, body }) {
     const me = guild.members.me ?? await guild.members.fetchMe();
     if (!channel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks])) throw new Error('Bot potrzebuje dostępu, wysyłania wiadomości i osadzania linków w kanale pomysłów.');
   }
-  const settings = { gamesEnabled: body.gamesEnabled, ideasEnabled: body.ideasEnabled, categoryId, ideasChannelId };
+  if (body.millionairesEnabled !== undefined && typeof body.millionairesEnabled !== 'boolean') throw new Error('Sprawdź przełącznik Milionerów.');
+  const settings = { gamesEnabled: body.gamesEnabled, millionairesEnabled: body.millionairesEnabled ?? communitySettings(featureStore.snapshot(),guild.id).millionairesEnabled, ideasEnabled: body.ideasEnabled, categoryId, ideasChannelId };
   await featureStore.update(state => { communityGuild(state, guild.id).settings = settings; });
   return settings;
 }
@@ -54,7 +57,8 @@ export async function decideIdea({ guild, featureStore, id, status, actorId }) {
   await message.edit(ideaPayload({ ...idea, status }));
   await featureStore.update(state => { const item = communityGuild(state, guild.id).ideas.find(i => i.id === id); if (item?.status === 'pending') Object.assign(item, { status, decidedBy: actorId, decidedAt: new Date().toISOString() }); });
 }
-export function createCommunitySystem({ featureStore, guildId, now = Date.now }) {
+export function createCommunitySystem({ featureStore, guildId, now = Date.now, client }) {
+  const millionaires = createMillionairesSystem({ featureStore, guildId, now, client });
   const busy = new Set();
   const privateReply = (i, text) => i.reply({ content: text, flags: MessageFlags.Ephemeral });
   async function command(i) {
@@ -80,6 +84,7 @@ export function createCommunitySystem({ featureStore, guildId, now = Date.now })
       } finally { busy.delete(key); }
     }
     if (!settings.gamesEnabled) return privateReply(i, 'Zabawy są wyłączone przez administrację.');
+    if (i.options.getSubcommand() === 'milionerzy') return millionaires.start(i);
     if (i.options.getSubcommand() === 'losuj') {
       const options = [...new Set(i.options.getString('opcje', true).split(',').map(s => s.trim()).filter(Boolean))];
       if (options.length < 2 || options.length > 20) return privateReply(i, 'Podaj od 2 do 20 różnych opcji oddzielonych przecinkami.');
@@ -95,6 +100,7 @@ export function createCommunitySystem({ featureStore, guildId, now = Date.now })
   }
   async function button(i) {
     if (i.guildId !== guildId) return privateReply(i, 'Nieprawidłowy serwer.');
+    if (i.customId.startsWith('strefa:community:million:')) return millionaires.button(i);
     const match = /^strefa:community:(idea|quiz):([a-f0-9]{12}):(yes|no|[0-3])$/.exec(i.customId);
     if (!match) return privateReply(i, 'Nieprawidłowy przycisk.');
     const [, type, id, choice] = match;
@@ -126,5 +132,5 @@ export function createCommunitySystem({ featureStore, guildId, now = Date.now })
       return i.editReply(feedback);
     } finally { busy.delete(id); }
   }
-  return { command, button };
+  return { command, button, tick: millionaires.tick };
 }
