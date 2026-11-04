@@ -162,7 +162,7 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
   async function log(guild, title, description, color = 0x5865f2, event = 'moderation') {
     const state = featureStore.snapshot(), settings = logSettings(state);
     if (!guild || guild.id !== cfg.guildId || !settings.enabled || !settings.events[event]) return;
-    const id = state.logChannelId || cfg.logChannelId;
+    const id = settings.eventChannels[event] || state.logChannelId || cfg.logChannelId;
     if (!id || !guild) return;
     const channel = await guild.channels.fetch(id).catch(() => null);
     if (!channel?.isTextBased() || typeof channel.send !== 'function') return;

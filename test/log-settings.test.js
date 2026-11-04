@@ -35,3 +35,21 @@ test('logi członków są zapisywane osobno i nie dotyczą innych serwerów',asy
   await f.handlers.memberChanged(member,false);assert.equal(f.state.botLogs[0].event,'members');
   await f.handlers.memberChanged({...member,guild:{...f.guild,id:'other'}},true);assert.equal(f.sent.length,1);
 });
+
+test('wiadomości i członkowie trafiają na odrębne kanały, pozostałe na domyślny',async()=>{
+  const f=fixture();f.state.logging={...logSettings({}),eventChannels:{messages:'messages-log',members:'members-log'}};
+  const destinations=[];f.guild.channels.fetch=async id=>{destinations.push(id);return f.channel;};
+  await f.handlers.messageDeleted({guild:f.guild,author:{id:'user'},channelId:'text'});
+  await f.handlers.memberChanged({guild:f.guild,id:'user',user:{username:'User'}},true);
+  await f.handlers.channelChanged({guild:f.guild,id:'new',name:'Kanał'},true);
+  assert.deepEqual(destinations,['messages-log','members-log','channel']);
+  assert.deepEqual(f.state.botLogs.map(entry=>entry.channelId),destinations);
+});
+
+test('można zapisać komplet osobnych kanałów bez domyślnego i zachować je przy starszym zapisie',async()=>{
+  const f=fixture();const body={...logSettings({}),channelId:null};
+  body.eventChannels=Object.fromEntries(Object.keys(body.events).map(key=>[key,`log-${key}`]));
+  await saveLogSettings({...f,body});assert.equal(f.state.logChannelId,null);assert.deepEqual(f.state.logging.eventChannels,body.eventChannels);
+  const older={enabled:true,events:body.events,channelId:null};await saveLogSettings({...f,body:older});assert.deepEqual(f.state.logging.eventChannels,body.eventChannels);
+  await assert.rejects(saveLogSettings({...f,body:{...body,eventChannels:{messages:'log-message'}}}),/każdego/);
+});
