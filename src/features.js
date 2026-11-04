@@ -14,10 +14,12 @@ import {
 } from 'discord.js';
 
 import { logSettings } from './log-settings.js';
+import { clearMessages, clearMessagesCommand } from './clear-messages.js';
 const command = name => new SlashCommandBuilder().setName(name);
 const adminCommand = name => command(name);
 
 export const featureCommands = [
+  clearMessagesCommand,
   command('statystyki').setDescription('Pokazuje statystyki serwera, rekrutacji i ekonomii.'),
   adminCommand('statystyki-kanaly').setDescription('Tworzy lub odświeża kanały ze statystykami serwera.'),
   adminCommand('statystyki-panel').setDescription('Publikuje albo przenosi automatycznie odświeżany panel statystyk.')
@@ -372,6 +374,7 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
   }
 
   async function command(interaction) {
+    if (interaction.commandName === 'wyczysc') return clearMessages(interaction, { guildId: cfg.guildId, log });
     const name = interaction.commandName;
     if (name.startsWith('ekonomia-')) return economyCommand(interaction, name);
     if (name === 'statystyki-kanaly') {

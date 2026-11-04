@@ -8,6 +8,7 @@ import { startPanelServer } from './panel-server.js';
 import { ApplicationStore, EligibilityError } from './store.js';
 import { FeatureStore } from './feature-store.js';
 import { createFeatureHandlers, isFeatureCommand } from './features.js';
+import { clearMessagesCommand } from './clear-messages.js';
 import { createProSystem, isProCommand } from './pro-system.js';
 import { closeDatabase, databaseEnabled } from './database.js';
 import { KeyedLock } from './lock.js';
@@ -525,7 +526,7 @@ client.once(Events.ClientReady, async ready => {
   await statusReporter.online();
   const guild = await ready.guilds.fetch(cfg.guildId).catch(() => null);
   if (!guild) { console.error('Bot nie ma dostępu do GUILD_ID.'); return; }
-  for (const command of [...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
+  for (const command of [clearMessagesCommand, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
   const levelTimer = setInterval(() => levelSystem.tick().catch(error => reportFailure('Błąd XP za rozmowy', error)), 15000);
   shutdownTimers.add(levelTimer);
   levelTimer.unref?.();

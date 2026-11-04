@@ -216,6 +216,10 @@ Projekt udostępnia panel pod `http://localhost:3000` i odczytuje statystyki z t
 Panel pokazuje liczniki i listę ostatnich podań bez odpowiedzi kandydatów; decyzje nadal obsługują komendy bota. `localhost` działa tylko na komputerze, na którym działa bot. Publiczny link wymaga oddzielnego hostingu albo tunelu HTTPS.
 
 
+## Usuwanie wiadomości
+
+`/wyczysc liczba:50` usuwa ostatnie wiadomości na bieżącym kanale; opcjonalne `kanal` pozwala wybrać inny kanał tekstowy. Zakres to 1–100 wiadomości. Bot pomija wiadomości starsze niż 14 dni, pokazuje faktyczną liczbę usuniętych i zapisuje zbiorczy log moderacyjny. Użytkownik i bot muszą mieć na wybranym kanale uprawnienia Wyświetlanie kanału, Czytanie historii i Zarządzanie wiadomościami. Odpowiedź komendy jest prywatna. Komenda rejestruje się po uruchomieniu bota.
+
 ## Poziomy aktywności
 
 Moduł Poziomy przyznaje domyślnie 15 XP za wiadomość (raz na 60 sekund) i 5 XP za pełną minutę rozmowy. Rozmowa wymaga co najmniej dwóch aktywnych osób; boty, AFK, wyciszenie i ogłuszenie są pomijane. Poziom wyznacza próg `100 × poziom²`. Czas offline nie jest doliczany.
