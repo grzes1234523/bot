@@ -6,7 +6,10 @@ export const communityDefaults = { gamesEnabled: true, millionairesEnabled: true
 export const communitySettings = (state, guildId) => ({ ...communityDefaults, ...(state.community?.guilds?.[guildId]?.settings ?? {}) });
 export function communityGuild(state, guildId) {
   state.community ??= { guilds: {} }; state.community.guilds ??= {};
-  return state.community.guilds[guildId] ??= { settings: { ...communityDefaults }, ideas: [], quizzes: [], draws: 0 };
+  const guild = state.community.guilds[guildId] ??= {};
+  guild.settings = { ...communityDefaults, ...(guild.settings ?? {}) };
+  guild.ideas ??= []; guild.quizzes ??= []; guild.draws ??= 0;
+  return guild;
 }
 export const communityCommands = [
   new SlashCommandBuilder().setName('zabawa').setDescription('Zabawy serwerowe: losowanie, quiz i Milionerzy.')

@@ -27,6 +27,12 @@ test('bank pytań ma unikalne ID i poprawne odpowiedzi dla każdego poziomu trud
   for (const q of millionaireQuestions) { assert.equal(q.options.length, 4); assert.ok(q.options[q.correct]); assert.equal(new Set(q.options).size, 4); }
   for (const difficulty of [0,1,2]) assert.ok(millionaireQuestions.filter(q => q.difficulty === difficulty).length >= 8);
 });
+test('Milionerzy jako pierwsza zabawa nowego serwera nie blokują późniejszych quizów', async () => {
+  const f = fixture(); delete f.state.community; await f.start();
+  f.i.options.getSubcommand = () => 'quiz'; const system = f.restart(); await system.command(f.i);
+  assert.equal(f.state.community.guilds.guild.quizzes.length, 1);
+  assert.equal(f.state.community.guilds.guild.millionaires.length, 1);
+});
 test('start tworzy 12 różnych pytań i blokuje drugą aktywną grę tej samej osoby', async () => {
   const f = fixture(); await f.start();
   assert.equal(f.game().questions.length, 12); assert.equal(new Set(f.game().questions.map(q => q.id)).size, 12);
