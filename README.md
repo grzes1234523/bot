@@ -265,3 +265,16 @@ Role domyślne: Właściciel, Administrator, Moderator, VIP, Gracz, Gość, Bot 
 Żadna z tych komend nie usuwa, nie przenosi i nie zmienia istniejących kanałów ani ról. Nie zmienia też konfiguracji innych modułów, sald, XP i podań. Uprawnienia istniejących elementów pozostają bez zmian. W przypadku błędu wykonana część dodawania zostaje zachowana, a następne wywołanie pomija już istniejące elementy.
 
 Starsze nazwy `/przebuduj-serwer` i `/serwer-przebuduj` również oznaczają teraz wyłącznie dodawanie brakujących elementów. Opcje usuwania nie są rejestrowane, a dawne przyciski i formularze przebudowy są odrzucane. Moduł dawnej destrukcyjnej przebudowy nie jest podłączony do bota ani rejestru komend. Wdrożenie nie wykonuje komend na serwerze automatycznie.
+
+### Cztery warianty układu
+
+W `/przebuduj-serwer` (także `/rozbuduj-serwer` i `/serwer-przebuduj`) wybierz opcję `wariant`:
+
+1. **Prosty i czytelny** — start, społeczność, rozmowy i pomoc.
+2. **Gamingowy** — gry, szukanie ekipy, zabawy i pokoje zespołów.
+3. **Rozbudowana społeczność** — domyślny pełny układ z rekrutacją i logami.
+4. **Strefa z wydarzeniami** — turnieje, zapisy, drużyny, wyniki i konkursy.
+
+Każdy wariant dodaje własne role bez automatycznego przypisywania ich członkom. Istniejące elementy o pasujących nazwach są używane ponownie, a pozostałe kanały i role pozostają. Zmiana wariantu uzupełnia serwer; nie usuwa poprzedniego układu. Kategorie administracji i logów są prywatne. Konfiguracja modułów bota pozostaje bez zmian.
+
+Przykład: `/przebuduj-serwer wariant:Gamingowy`. Cały układ może uruchomić właściciel serwera.

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {Collection,ChannelType} from 'discord.js';
 import {createServerBuilderSystem,serverBuilderCommands} from '../src/server-builder.js';
+import {serverPresets} from '../src/server-presets.js';
 function fixture(){
  const channels=new Collection(),roles=new Collection(),created=[],assigned=[],deleted=[],replies=[];let seq=0;
  const channel=options=>({id:`c${++seq}`,guildId:'guild',name:options.name,type:options.type,parentId:options.parent??null,permissionsFor:()=>({has:()=>true}),permissionOverwrites:{cache:new Collection()},delete:async()=>{deleted.push(1);throw new Error('Nie wolno usuwać');}});
@@ -12,9 +13,9 @@ function fixture(){
  return{channels,roles,created,assigned,deleted,replies,guild,i,options,system:createServerBuilderSystem({client:{user:{id:'bot'}}})};
 }
 test('rozbudowa tworzy brakujący układ i role, a drugie wywołanie nie duplikuje elementów',async()=>{
- const f=fixture();await f.system.command(f.i);assert.equal(f.channels.size,51);assert.equal(f.roles.size,8);assert.equal(f.deleted.length,0);
+ const f=fixture();await f.system.command(f.i);assert.equal(f.channels.size,51);assert.equal(f.roles.size,9);assert.equal(f.deleted.length,0);
  assert.ok([...f.roles.values()].every(r=>r.permissions.length===0));
- await f.system.command(f.i);assert.equal(f.channels.size,51);assert.equal(f.roles.size,8);assert.match(f.replies.at(-1).content,/0 kategorii, 0 kanałów, 0 ról/);
+ await f.system.command(f.i);assert.equal(f.channels.size,51);assert.equal(f.roles.size,9);assert.match(f.replies.at(-1).content,/0 kategorii, 0 kanałów, 0 ról/);
 });
 test('stare komendy również tylko dodają, nie usuwają kanałów',async()=>{
  for(const name of ['przebuduj-serwer','serwer-przebuduj']){const f=fixture();f.i.commandName=name;await f.system.command(f.i);assert.equal(f.channels.size,51);assert.equal(f.deleted.length,0);}
@@ -33,4 +34,19 @@ test('brak uprawnień lub błędny kolor nie tworzy elementów',async()=>{
 });
 test('nazwy komend są unikalne i obejmują dodawanie kanału, kategorii i roli',()=>{
  const names=serverBuilderCommands.map(c=>c.toJSON().name);assert.equal(new Set(names).size,names.length);for(const name of ['kanal-dodaj','kategoria-dodaj','rola-dodaj'])assert.ok(names.includes(name));
+});
+
+for(const [key,preset] of Object.entries(serverPresets))test(`wariant ${key}: właściwe kanały i role, ponowienie bez duplikatów`,async()=>{
+ const f=fixture();f.i.commandName='przebuduj-serwer';f.options.wariant=key;
+ await f.system.command(f.i);
+ assert.equal(f.channels.size,preset.categories.reduce((n,c)=>n+1+c.channels.length,0));
+ assert.deepEqual([...f.roles.values()].map(r=>r.name).sort(),[...preset.roles].sort());
+ assert.equal(f.deleted.length,0);assert.match(f.replies.at(-1).content,new RegExp(preset.name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+ const count=f.channels.size;await f.system.command(f.i);assert.equal(f.channels.size,count);assert.equal(f.roles.size,preset.roles.length);
+});
+test('każda komenda pełnego układu udostępnia cztery warianty',()=>{
+ for(const command of serverBuilderCommands.slice(0,3))assert.equal(command.toJSON().options.find(o=>o.name==='wariant').choices.length,4);
+});
+test('nieznany wariant nie tworzy niczego',async()=>{
+ const f=fixture();f.options.wariant='brak';await f.system.command(f.i);assert.equal(f.channels.size,0);assert.equal(f.roles.size,0);
 });

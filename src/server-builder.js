@@ -1,7 +1,7 @@
 import { ChannelType, MessageFlags, PermissionFlagsBits as P, SlashCommandBuilder } from 'discord.js';
-import { serverLayout } from './server-layout.js';
+import { serverPresets, presetChoices } from './server-presets.js';
 
-const fullCommand=name=>new SlashCommandBuilder().setName(name).setDescription('Dodaje brakujące kanały, kategorie i role całego serwera. NICZEGO NIE USUWA.').setDMPermission(false).setDefaultMemberPermissions(P.Administrator);
+const fullCommand=name=>new SlashCommandBuilder().setName(name).setDescription('Dodaje brakujące kanały, kategorie i role całego serwera. NICZEGO NIE USUWA.').setDMPermission(false).setDefaultMemberPermissions(P.Administrator).addStringOption(o=>o.setName('wariant').setDescription('Wybierz układ; domyślnie 3. Rozbudowana społeczność').addChoices(...presetChoices));
 export const serverBuilderCommands=[
   ...['rozbuduj-serwer','przebuduj-serwer','serwer-przebuduj'].map(fullCommand),
   new SlashCommandBuilder().setName('kategoria-dodaj').setDescription('Tworzy kategorię, zachowując obecne kanały.').setDMPermission(false).setDefaultMemberPermissions(P.ManageChannels)
@@ -57,8 +57,11 @@ export function createServerBuilderSystem({client}) {
         const channel=await i.guild.channels.create({name:definition.name,type:definition.type,...(parent?{parent:parent.id}:{}),...(permissionOverwrites?{permissionOverwrites}:{}),reason});channels.set(channel.id,channel);addedChannels++;return channel;
       };
       if(full){
-        const staff=[];for(const role of layoutRoles){const created=await ensureRole(role);if(/Administrator|Moderator/.test(role.name))staff.push(created.id);}
-        for(const category of serverLayout){
+        const preset=serverPresets[i.options.getString('wariant')??'spolecznosc'];
+        if(!preset)throw new Error('Wybierz jeden z czterech dostępnych wariantów.');
+        const presetRoles=preset.roles.map(name=>layoutRoles.find(r=>r.name===name)??{name,color:0x8b5cf6});
+        const staff=[];for(const role of presetRoles){const created=await ensureRole(role);if(/Administrator|Moderator/.test(role.name))staff.push(created.id);}
+        for(const category of preset.categories){
           const privatePermissions=[{id:i.guild.id,deny:[P.ViewChannel]},{id:client.user.id,allow:[P.ViewChannel,P.SendMessages,P.ReadMessageHistory,P.EmbedLinks,P.AttachFiles,P.ManageChannels]},...staff.map(id=>({id,allow:[P.ViewChannel,P.SendMessages,P.ReadMessageHistory]}))];
           const parent=await ensureCategory(category.name,category.private?privatePermissions:undefined);
           if(!parent.permissionsFor(bot)?.has([P.ViewChannel,P.ManageChannels]))throw new Error(`Bot nie ma dostępu do kategorii ${parent.name}. Istniejących uprawnień nie zmieniono.`);
@@ -87,7 +90,7 @@ export function createServerBuilderSystem({client}) {
           await ensureChannel({name,type:i.options.getString('typ')==='voice'?ChannelType.GuildVoice:ChannelType.GuildText},parent);
         }
       }
-      return i.editReply({content:`✅ Dodano: **${addedCategories} kategorii, ${addedChannels} kanałów, ${addedRoles} ról**. Już istniejące: ${reused}. Niczego nie usunięto ani nie przeniesiono. Role nie zostały nadane użytkownikom. Nowe role nie mają globalnych uprawnień Administratora ani moderacji; możesz je ustawić w Discordzie.`,allowedMentions:{parse:[]}});
+      return i.editReply({content:`${full?'Układ: **'+serverPresets[i.options.getString('wariant')??'spolecznosc'].name+'**\n':''}✅ Dodano: **${addedCategories} kategorii, ${addedChannels} kanałów, ${addedRoles} ról**. Już istniejące: ${reused}. Niczego nie usunięto ani nie przeniesiono. Role nie zostały nadane użytkownikom. Nowe role nie mają globalnych uprawnień Administratora ani moderacji; możesz je ustawić w Discordzie.`,allowedMentions:{parse:[]}});
     }catch(error){return i.editReply({content:`Dodawanie zatrzymane: ${error.message}\nDodano dotąd: ${addedCategories} kategorii, ${addedChannels} kanałów, ${addedRoles} ról. Niczego nie usunięto.`,allowedMentions:{parse:[]}});}
     finally{busy.delete(i.guildId);}
   }
