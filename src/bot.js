@@ -3,6 +3,7 @@ import {
   Client, Events, GatewayIntentBits, MessageFlags,
 } from 'discord.js';
 import { readConfig } from './config.js';
+import { registerGuildCommands } from './command-registration.js';
 import { startPanelServer } from './panel-server.js';
 import { ApplicationStore } from './store.js';
 import { FeatureStore } from './feature-store.js';
@@ -102,12 +103,22 @@ client.once(Events.ClientReady, async ready => {
   }
 });
 
-async function initializeGuild(guild) {
-  await applicationStores.get(guild.id);
-  const runtime = runtimes.get(guild.id);
-  await runtime.features.refreshStatisticsChannels(guild).catch(error => reportFailure('Początkowe statystyki serwera', error));
-  for (const command of [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
-  await runtime.recruitment.recoverUnsent(guild);
+const initializingGuilds = new Map();
+function initializeGuild(guild) {
+  if (initializingGuilds.has(guild.id)) return initializingGuilds.get(guild.id);
+  const task = (async () => {
+    const registration = await registerGuildCommands({ guild,
+      commands: [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands],
+      isActive: () => client.guilds.cache.has(guild.id) && !shutdownPromise, reportFailure });
+    if (!registration.ok || !client.guilds.cache.has(guild.id)) return;
+    await applicationStores.get(guild.id);
+    const runtime = runtimes.get(guild.id);
+    if (!runtime) return;
+    await runtime.features.refreshStatisticsChannels(guild).catch(error => reportFailure(`Początkowe statystyki serwera ${guild.name} (${guild.id})`, error));
+    await runtime.recruitment.recoverUnsent(guild);
+  })().finally(() => initializingGuilds.delete(guild.id));
+  initializingGuilds.set(guild.id, task);
+  return task;
 }
 client.on(Events.GuildCreate, guild => {
   void initializeGuild(guild).then(() => featureHandlers.refreshStatisticsChannels(guild)).then(() => publishWorkerStatus())
