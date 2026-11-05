@@ -250,7 +250,7 @@ Stan pytań, kół i wyniku jest trwale zapisany w `community.guilds[ID].million
 
 ### Odświeżanie listy serwerów
 
-Lista „Serwery” pokazuje serwery, których zalogowany użytkownik jest właścicielem lub ma uprawnienie Administrator/Zarządzanie serwerem. Użyj „Odśwież serwery” po dodaniu bota albo zmianie uprawnień. Odświeżenie pobiera aktualne dane konta Discord i pełną listę instalacji bota, również przy ponad 200 serwerach. Powrót do karty panelu aktualizuje listę; dane konta są buforowane najwyżej minutę. Token dostępu OAuth jest przechowywany wyłącznie w pamięci sesji serwera i nie jest wysyłany do przeglądarki. Gdy wygaśnie, panel pokazuje przycisk ponownego logowania.
+Lista „Serwery” pokazuje serwery, których zalogowany użytkownik jest właścicielem lub ma uprawnienie Administrator/Zarządzanie serwerem. Odświeżenie pobiera aktualne dane konta Discord i pełną listę instalacji bota, również przy ponad 200 serwerach. Powrót do karty panelu aktualizuje listę; dane konta są buforowane najwyżej minutę. Token dostępu OAuth jest przechowywany wyłącznie w pamięci sesji serwera i nie jest wysyłany do przeglądarki. Gdy sesja wygaśnie, zaloguj się ponownie ze strony głównej panelu.
 
 
 ## Dodawanie kanałów, kategorii i ról
