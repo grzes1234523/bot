@@ -3,8 +3,9 @@ import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, Channe
 import { serverLayout, layoutCount, applyLayoutSettings } from './server-layout.js';
 import { guildStore } from './guild-store.js';
 
-export const rebuildCommands = [new SlashCommandBuilder().setName('serwer-przebuduj').setDescription('Podgląd przebudowy kanałów; wykonanie wymaga potwierdzenia właściciela.').setDMPermission(false).setDefaultMemberPermissions(P.Administrator)
-  .addStringOption(o=>o.setName('tryb').setDescription('Domyślnie pokazuje plan, bez usuwania.').addChoices({name:'Podgląd nowego układu',value:'preview'},{name:'Status ostatniej przebudowy',value:'status'},{name:'Anuluj lub zatrzymaj',value:'cancel'}))];
+export const rebuildCommands = [new SlashCommandBuilder().setName('serwer-przebuduj').setDescription('Przebudowa kanałów; potwierdzenie USUN ID_SERWERA uruchamia ją od razu.').setDMPermission(false).setDefaultMemberPermissions(P.Administrator)
+  .addStringOption(o=>o.setName('tryb').setDescription('Bez potwierdzenia pokazuje podgląd.').addChoices({name:'Podgląd nowego układu',value:'preview'},{name:'Status ostatniej przebudowy',value:'status'},{name:'Anuluj lub zatrzymaj',value:'cancel'}))
+  .addStringOption(o=>o.setName('potwierdzenie').setDescription('USUN ID_SERWERA — od razu trwale usuwa stare kanały i wiadomości.').setMaxLength(50))];
 const running = new Set(['creating','deleting','configuring']);
 const phrase = guildId => `USUN ${guildId}`;
 function snapshot(channels) {
@@ -55,12 +56,18 @@ export function createServerRebuildSystem({client,featureStore,cfg,now=Date.now}
       return respond(i,'Anulowano plan. Trwająca operacja zatrzyma się po bieżącym żądaniu Discorda. Wcześniejsze usunięcia nie zostaną cofnięte.');
     }
     if(running.has(previous?.status)||busy.has(i.guildId))return respond(i,'Przebudowa już trwa albo została przerwana restartem. Sprawdź tryb Status. Przed nowym planem użyj trybu Anuluj.');
+    const confirmation=i.options.getString('potwierdzenie');
+    if(confirmation!==null&&confirmation!==undefined&&confirmation.trim()!==phrase(i.guildId))return respond(i,`Aby wykonać przebudowę od razu, wpisz w opcji potwierdzenie dokładnie: ${phrase(i.guildId)}. Niczego nie usunięto.`);
     await i.deferReply({flags:MessageFlags.Ephemeral});
     try {
       const {channels}=await preflight(i.guild);
       const backup=snapshot(channels);
       const job={id:crypto.randomBytes(8).toString('hex'),guildId:i.guildId,guildName:i.guild.name,ownerId:i.user.id,status:'preview',createdAt:now(),expiresAt:now()+5*60000,backup,fingerprint:fingerprint(backup),created:{},deletedIds:[]};
       await featureStore.update(state=>{state.serverRebuilds??={};state.serverRebuilds[i.guildId]=job;});
+      if(confirmation){
+        await i.editReply({content:`Rozpoczynam potwierdzoną przebudowę serwera ${i.guild.name} (${i.guildId}). Stare kanały i ich wiadomości zostaną bezpowrotnie usunięte. Kopia struktury poniżej nie zawiera wiadomości. Status: /serwer-przebuduj tryb:Status.`,files:[attachment(job)],allowedMentions:{parse:[]}});
+        return execute(i,job,true);
+      }
       const embed=new EmbedBuilder().setColor(0xed4245).setTitle('Podgląd przebudowy — niczego nie usunięto')
         .setDescription(`Serwer: **${i.guild.name}**\nID: **${i.guildId}**\nDo usunięcia: **${backup.length} kanałów i kategorii**. Do utworzenia: **${layoutCount()}**.\n\n**Wszystkie wiadomości i wątki w usuwanych kanałach zostaną bezpowrotnie utracone. Rozmowy głosowe zostaną przerwane. Stare linki i panele przestaną działać.**\nRole, członkowie, salda, XP oraz zapisane podania pozostają. Kopia poniżej obejmuje tylko strukturę, bez wiadomości.\n\nPlan wygasa za 5 minut. Po kliknięciu potwierdzenia trzeba jeszcze wpisać: **${phrase(i.guildId)}**.`)
         .addFields(...serverLayout.map(category=>({name:category.name+(category.private?' 🔒':''),value:category.channels.map(c=>`${c.type===ChannelType.GuildVoice?'🔊':'#'} ${c.name}${c.private?' 🔒':''}`).join('\n')})));
@@ -79,13 +86,17 @@ export function createServerRebuildSystem({client,featureStore,cfg,now=Date.now}
     const match=/^strefa:rebuild:execute:([a-f0-9]{16})$/.exec(i.customId),job=current(i.guildId);
     if(!match||!job||job.id!==match[1]||job.ownerId!==i.user.id||job.status!=='preview'||job.expiresAt<=now())return respond(i,'Plan jest nieaktualny. Niczego nie usunięto.');
     if(i.fields.getTextInputValue('confirmation').trim()!==phrase(i.guildId))return respond(i,'Tekst potwierdzenia nie pasuje. Niczego nie usunięto.');
+    return execute(i,job);
+  }
+  async function execute(i,job,alreadyDeferred=false) {
     if(busy.has(i.guildId))return respond(i,'Przebudowa już trwa.');
     busy.add(i.guildId);
     let claimed=false;
     const mutate=change=>featureStore.update(state=>{const current=state.serverRebuilds?.[i.guildId];if(current?.id!==job.id||!running.has(current.status))throw new Error('Przebudowa została anulowana lub zastąpiona.');change(current);current.updatedAt=now();});
     const checkpoint=change=>featureStore.update(state=>{const current=state.serverRebuilds?.[i.guildId];if(current?.id===job.id){change(current);current.updatedAt=now();}});
     try {
-      await i.deferReply({flags:MessageFlags.Ephemeral});
+      if(!alreadyDeferred)await i.deferReply({flags:MessageFlags.Ephemeral});
+      if(!await owner(i))throw new Error('Właściciel serwera uległ zmianie. Niczego nie usunięto.');
       const {channels,staff}=await preflight(i.guild);
       if(fingerprint(snapshot(channels))!==job.fingerprint)throw new Error('Kanały zmieniły się od podglądu. Przygotuj i zatwierdź nowy plan.');
       await featureStore.update(state=>{const current=state.serverRebuilds?.[i.guildId];if(current?.id!==job.id||current.status!=='preview'||current.expiresAt<=now())throw new Error('Plan został już wykorzystany lub wygasł.');current.status='creating';});

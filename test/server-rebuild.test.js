@@ -28,7 +28,17 @@ test('komenda udostępnia tylko podgląd, status i anulowanie',()=>{
   const command=rebuildCommands[0].toJSON();assert.equal(command.name,'serwer-przebuduj');
   assert.equal(command.default_member_permissions,String(P.Administrator));
   assert.deepEqual(command.options[0].choices.map(c=>c.value),['preview','status','cancel']);
+  assert.equal(command.options[1].name,'potwierdzenie');
   assert.equal(serverLayout.length,10);assert.equal(layoutCount(),51);
+});
+test('jedna komenda z dokładnym potwierdzeniem wykonuje przebudowę bez przycisku i formularza',async()=>{
+  const f=fixture();f.i.options.getString=name=>name==='potwierdzenie'?`USUN ${guildId}`:null;
+  await f.system().command(f.i);assert.equal(f.job().status,'complete');assert.equal(f.created.length,51);assert.equal(f.deleted.length,2);
+  assert.equal(f.replies[0].files.length,1);assert.match(f.replies[0].content,/Rozpoczynam/);
+});
+test('błędny ID w opcji potwierdzenia nie tworzy planu i nie uruchamia usuwania',async()=>{
+  const f=fixture();f.i.options.getString=name=>name==='potwierdzenie'?`USUN ${otherGuild}`:null;
+  await f.system().command(f.i);assert.equal(f.job(),undefined);assert.equal(f.created.length,0);assert.equal(f.deleted.length,0);
 });
 test('podgląd pokazuje ostrzeżenie i kopię struktury, ale niczego nie zmienia na Discordzie',async()=>{
   const f=fixture();await f.preview();assert.equal(f.job().status,'preview');

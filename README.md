@@ -264,3 +264,8 @@ Bot najpierw tworzy cały nowy układ, a dopiero potem usuwa dokładnie stare ID
 Po wykonaniu bot aktualizuje wybór kanałów statystyk, logów, rekrutacji, powitań/pożegnań, pomysłów, poziomów, weryfikacji i auto kanałów. Dotychczasowe panele ticketów tego serwera zostają oznaczone jako nieaktywne. Nowe panele rekrutacji, weryfikacji i ticketów należy opublikować ponownie odpowiednimi komendami. Układ i ustawienia innych serwerów pozostają bez zmian.
 
 `/serwer-przebuduj tryb:Status` pokazuje postęp oraz plik struktury. `tryb:Anuluj` anuluje podgląd lub zatrzymuje trwającą pracę po bieżącym żądaniu Discorda; nie cofa już wykonanych usunięć. Błąd zatrzymuje dalsze kroki. Restart nigdy nie wznawia usuwania automatycznie: po przerwaniu trzeba sprawdzić status i anulować stary przebieg przed nowym podglądem. Komenda nie jest wywoływana automatycznie podczas wdrożenia.
+
+
+### Wykonanie przebudowy jednym poleceniem
+
+Właściciel może uruchomić przebudowę bez przycisku i formularza: `/serwer-przebuduj potwierdzenie:USUN ID_SERWERA`. Dokładna fraza z ID bieżącego serwera stanowi potwierdzenie bezpowrotnego usunięcia starych kanałów i wiadomości. Bot najpierw dostarcza plik struktury, a następnie wykonuje opisany wcześniej układ. Błędna fraza nie rozpoczyna operacji. Wywołanie bez opcji `potwierdzenie` nadal służy tylko do podglądu. Tryby Status i Anuluj pozostają dostępne. Komenda nie jest wywoływana podczas instalacji ani wdrożenia.
