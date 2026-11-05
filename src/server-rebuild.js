@@ -5,7 +5,9 @@ import { guildStore } from './guild-store.js';
 
 export const rebuildCommands = [new SlashCommandBuilder().setName('serwer-przebuduj').setDescription('Przebudowa kanałów; potwierdzenie USUN ID_SERWERA uruchamia ją od razu.').setDMPermission(false).setDefaultMemberPermissions(P.Administrator)
   .addStringOption(o=>o.setName('tryb').setDescription('Bez potwierdzenia pokazuje podgląd.').addChoices({name:'Podgląd nowego układu',value:'preview'},{name:'Status ostatniej przebudowy',value:'status'},{name:'Anuluj lub zatrzymaj',value:'cancel'}))
-  .addStringOption(o=>o.setName('potwierdzenie').setDescription('USUN ID_SERWERA — od razu trwale usuwa stare kanały i wiadomości.').setMaxLength(50))];
+  .addStringOption(o=>o.setName('potwierdzenie').setDescription('USUN ID_SERWERA — od razu trwale usuwa stare kanały i wiadomości.').setMaxLength(50)),
+  new SlashCommandBuilder().setName('przebuduj-serwer').setDescription('USUWA stare kanały i wiadomości. Od razu tworzy nowy układ całego serwera. Tylko właściciel.').setDMPermission(false).setDefaultMemberPermissions(P.Administrator),
+];
 const running = new Set(['creating','deleting','configuring']);
 const phrase = guildId => `USUN ${guildId}`;
 function snapshot(channels) {
@@ -47,7 +49,8 @@ export function createServerRebuildSystem({client,featureStore,cfg,now=Date.now}
   }
   async function command(i) {
     if(!await owner(i))return respond(i,'Tylko właściciel tego serwera może przygotować lub zatwierdzić przebudowę.');
-    const mode=i.options.getString('tryb')??'preview';
+    const direct=i.commandName==='przebuduj-serwer';
+    const mode=direct?'preview':i.options.getString('tryb')??'preview';
     const previous=current(i.guildId);
     if(mode==='status')return i.reply({content:previous?`Przebudowa ${previous.id}: **${previous.status}**. Utworzone: ${Object.keys(previous.created??{}).length}, usunięte: ${previous.deletedIds?.length??0}.${previous.error?`\n${previous.error}`:''}`:'Nie ma zapisanej przebudowy.',files:previous?[attachment(previous)]:[],flags:MessageFlags.Ephemeral});
     if(mode==='cancel') {
@@ -56,7 +59,7 @@ export function createServerRebuildSystem({client,featureStore,cfg,now=Date.now}
       return respond(i,'Anulowano plan. Trwająca operacja zatrzyma się po bieżącym żądaniu Discorda. Wcześniejsze usunięcia nie zostaną cofnięte.');
     }
     if(running.has(previous?.status)||busy.has(i.guildId))return respond(i,'Przebudowa już trwa albo została przerwana restartem. Sprawdź tryb Status. Przed nowym planem użyj trybu Anuluj.');
-    const confirmation=i.options.getString('potwierdzenie');
+    const confirmation=direct?phrase(i.guildId):i.options.getString('potwierdzenie');
     if(confirmation!==null&&confirmation!==undefined&&confirmation.trim()!==phrase(i.guildId))return respond(i,`Aby wykonać przebudowę od razu, wpisz w opcji potwierdzenie dokładnie: ${phrase(i.guildId)}. Niczego nie usunięto.`);
     await i.deferReply({flags:MessageFlags.Ephemeral});
     try {

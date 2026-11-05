@@ -269,3 +269,8 @@ Po wykonaniu bot aktualizuje wybór kanałów statystyk, logów, rekrutacji, pow
 ### Wykonanie przebudowy jednym poleceniem
 
 Właściciel może uruchomić przebudowę bez przycisku i formularza: `/serwer-przebuduj potwierdzenie:USUN ID_SERWERA`. Dokładna fraza z ID bieżącego serwera stanowi potwierdzenie bezpowrotnego usunięcia starych kanałów i wiadomości. Bot najpierw dostarcza plik struktury, a następnie wykonuje opisany wcześniej układ. Błędna fraza nie rozpoczyna operacji. Wywołanie bez opcji `potwierdzenie` nadal służy tylko do podglądu. Tryby Status i Anuluj pozostają dostępne. Komenda nie jest wywoływana podczas instalacji ani wdrożenia.
+
+
+### Prosta komenda bez parametrów
+
+`/przebuduj-serwer` wykonuje cały opisany układ **bez parametrów, przycisku ani formularza**. Sama nazwa i opis komendy informują, że usuwa stare kanały oraz ich wiadomości. Uprawniony jest wyłącznie właściciel bieżącego serwera. Pozostają sprawdzenia uprawnień bota, limitów, kopia struktury i trwały zapis postępu. Nie wpływa na pozostałe serwery bota. Do spokojnego obejrzenia układu można nadal użyć `/serwer-przebuduj` bez opcji. Automatyczne wdrożenie nie uruchamia żadnej przebudowy.

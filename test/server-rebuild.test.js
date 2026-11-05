@@ -36,6 +36,15 @@ test('jedna komenda z dokładnym potwierdzeniem wykonuje przebudowę bez przycis
   await f.system().command(f.i);assert.equal(f.job().status,'complete');assert.equal(f.created.length,51);assert.equal(f.deleted.length,2);
   assert.equal(f.replies[0].files.length,1);assert.match(f.replies[0].content,/Rozpoczynam/);
 });
+test('przebuduj-serwer wykonuje cały układ bez opcji, przycisku i formularza',async()=>{
+  const f=fixture();f.i.commandName='przebuduj-serwer';f.i.options.getString=()=>{throw new Error('Ta komenda nie ma parametrów');};
+  const command=rebuildCommands.find(command=>command.name==='przebuduj-serwer').toJSON();assert.equal(command.options.length,0);
+  await f.system().command(f.i);assert.equal(f.job().status,'complete');assert.equal(f.created.length,51);assert.equal(f.deleted.length,2);
+});
+test('komenda bez parametrów nadal odrzuca administratora niebędącego właścicielem',async()=>{
+  const f=fixture();f.i.commandName='przebuduj-serwer';f.i.user.id='admin';await f.system().command(f.i);
+  assert.equal(f.created.length,0);assert.equal(f.deleted.length,0);assert.match(f.replies.at(-1).content,/właściciel/);
+});
 test('błędny ID w opcji potwierdzenia nie tworzy planu i nie uruchamia usuwania',async()=>{
   const f=fixture();f.i.options.getString=name=>name==='potwierdzenie'?`USUN ${otherGuild}`:null;
   await f.system().command(f.i);assert.equal(f.job(),undefined);assert.equal(f.created.length,0);assert.equal(f.deleted.length,0);

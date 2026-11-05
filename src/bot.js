@@ -116,7 +116,7 @@ client.on(Events.GuildCreate, guild => {
 client.on(Events.GuildDelete, guild => { runtimes.remove(guild.id); void publishWorkerStatus(); });
 
 client.on(Events.InteractionCreate, async interaction => {
-  if ((interaction.isChatInputCommand() && interaction.commandName === 'serwer-przebuduj') || ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith('strefa:rebuild:'))) {
+  if ((interaction.isChatInputCommand() && rebuildCommands.some(command=>command.name===interaction.commandName)) || ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith('strefa:rebuild:'))) {
     try { if (interaction.isChatInputCommand()) await serverRebuild.command(interaction); else if (interaction.isButton()) await serverRebuild.button(interaction); else await serverRebuild.modal(interaction); }
     catch(error) { reportFailure('Błąd przebudowy serwera',error); const payload={content:'Nie udało się przygotować przebudowy. Sprawdź status komendy.'};if(interaction.deferred||interaction.replied)await interaction.editReply(payload).catch(()=>{});else await interaction.reply({...payload,flags:MessageFlags.Ephemeral}).catch(()=>{}); }
     return;
