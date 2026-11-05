@@ -1,9 +1,10 @@
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 
 export const levelDefaults = { enabled: true, messagesEnabled: true, voiceEnabled: true, messageXp: 15, messageCooldownSeconds: 60, voiceXpPerMinute: 5, announcementChannelId: null, rewards: [] };
+const levelCardCommand=name=>new SlashCommandBuilder().setName(name).setDescription('Pokazuje kartę poziomu, ranking i pasek XP.').addUserOption(o=>o.setName('uzytkownik').setDescription('Osoba, której poziom chcesz sprawdzić'));
 export const levelCommands = [
-  new SlashCommandBuilder().setName('level').setDescription('Pokazuje poziom, XP i postęp aktywności.')
-    .addUserOption(o => o.setName('uzytkownik').setDescription('Osoba, której poziom chcesz sprawdzić')),
+  levelCardCommand('level'),
+  levelCardCommand('poziom'),
   new SlashCommandBuilder().setName('ranking').setDescription('Ranking poziomów aktywności na serwerze.'),
   new SlashCommandBuilder().setName('poziomy-ustaw').setDescription('Włącza lub wyłącza system poziomów.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
@@ -35,6 +36,22 @@ function ensureGuild(state, guildId) {
   state.levels ??= { guilds: {} };
   state.levels.guilds ??= {};
   return state.levels.guilds[guildId] ??= { settings: { ...levelDefaults }, users: {} };
+}
+
+export function buildLevelCard({user,member,account,rank,guild,timestamp=Date.now()}) {
+  const xp=Math.max(0,Number(account.xp)||0),level=levelForXp(xp);
+  const start=xpForLevel(level),next=xpForLevel(level+1),progress=xp-start,needed=next-start;
+  const filled=Math.min(20,Math.floor(progress/needed*20));
+  const bar='█'.repeat(filled)+'░'.repeat(20-filled);
+  const format=value=>value.toLocaleString('pl-PL');
+  const name=member?.displayName||user.globalName||user.username;
+  const embed=new EmbedBuilder().setColor(0xf1c40f).setTitle(`⭐ Karta poziomu — ${name}`.slice(0,256))
+    .setDescription(`**Poziom ${level} · Ranking ${rank?'#'+rank:'—'}**\n\n\`${bar}\`\n${format(progress)} / ${format(needed)} XP (łącznie **${format(xp)} XP**)\n\nDo następnego poziomu: **${format(next-xp)} XP**`)
+    .setFooter({text:`${guild?.name||'Serwer Discord'} · Wiadomości: ${account.messageCount||0} · Rozmowy: ${account.voiceMinutes||0} min`})
+    .setTimestamp(timestamp);
+  const avatar=member?.displayAvatarURL?.({size:256})||user.displayAvatarURL?.({size:256});
+  if(avatar)embed.setThumbnail(avatar);
+  return embed;
 }
 
 export function createLevelSystem({ client, featureStore, guildId, now = Date.now }) {
@@ -142,8 +159,9 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
     if (interaction.commandName === 'ranking') return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x8b5cf6).setTitle('🏆 Ranking poziomów').setDescription(ranking.slice(0, 10).map((user, i) => `**${i + 1}.** <@${user.id}> · poziom **${user.level}** · ${user.xp} XP`).join('\n') || 'Nikt jeszcze nie zdobył XP. Zacznij rozmawiać!')], allowedMentions: { parse: [] } });
     const user = interaction.options.getUser('uzytkownik') ?? interaction.user;
     const account = ranking.find(item => item.id === user.id) ?? { xp: 0, level: 0, messageCount: 0, voiceMinutes: 0 };
-    const threshold = xpForLevel(account.level + 1);
-    return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x8b5cf6).setTitle(`⭐ Poziom — ${user.username}`).setDescription(`Poziom **${account.level}** · **${account.xp} XP**\nDo następnego poziomu: **${threshold - account.xp} XP**`).addFields({ name: 'Wiadomości z XP', value: String(account.messageCount), inline: true }, { name: 'Minuty rozmów z XP', value: String(account.voiceMinutes), inline: true })], allowedMentions: { parse: [] } });
+    const member = interaction.options.getMember?.('uzytkownik') ?? interaction.guild?.members?.cache?.get(user.id) ?? (user.id===interaction.user.id?interaction.member:null);
+    const rank = ranking.findIndex(item=>item.id===user.id);
+    return interaction.reply({embeds:[buildLevelCard({user,member,account,rank:rank<0?null:rank+1,guild:interaction.guild,timestamp:now()})],allowedMentions:{parse:[]}});
   }
   return { message, voiceState, tick, command };
 }

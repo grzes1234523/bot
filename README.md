@@ -278,3 +278,7 @@ W `/przebuduj-serwer` (także `/rozbuduj-serwer` i `/serwer-przebuduj`) wybierz 
 Każdy wariant dodaje własne role bez automatycznego przypisywania ich członkom. Istniejące elementy o pasujących nazwach są używane ponownie, a pozostałe kanały i role pozostają. Zmiana wariantu uzupełnia serwer; nie usuwa poprzedniego układu. Kategorie administracji i logów są prywatne. Konfiguracja modułów bota pozostaje bez zmian.
 
 Przykład: `/przebuduj-serwer wariant:Gamingowy`. Cały układ może uruchomić właściciel serwera.
+
+### Karta poziomu
+
+`/level` oraz `/poziom` pokazują kartę z avatarem, nazwą serwerową, miejscem w rankingu, paskiem XP i liczbą XP do następnego poziomu. Opcja `uzytkownik` pozwala sprawdzić inną osobę. Postęp na pasku jest liczony od początku bieżącego poziomu, a suma XP pozostaje osobną wartością. Brak wpisu w rankingu oznaczamy kreską. Karta nie zmienia istniejących XP ani zasad naliczania.

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Collection } from 'discord.js';
-import { createLevelSystem, levelDefaults, levelForXp, xpForLevel, validateLevelSettings, levelCommands, levelRanking } from '../src/levels.js';
+import { createLevelSystem, levelDefaults, levelForXp, xpForLevel, validateLevelSettings, levelCommands, levelRanking, buildLevelCard } from '../src/levels.js';
 
 function fixture() {
   let time = 1000000;
@@ -25,7 +25,7 @@ function fixture() {
 test('progi poziomów i rejestracja komend', () => {
   assert.equal(xpForLevel(2), 400);
   for (const [xp, level] of [[0, 0], [99, 0], [100, 1], [399, 1], [400, 2]]) assert.equal(levelForXp(xp), level);
-  assert.deepEqual(levelCommands.map(c => c.toJSON().name), ['level', 'ranking', 'poziomy-ustaw']);
+  assert.deepEqual(levelCommands.map(c => c.toJSON().name), ['level', 'poziom', 'ranking', 'poziomy-ustaw']);
 });
 test('XP za wiadomości respektuje cooldown także po restarcie i ignoruje boty oraz inne serwery', async () => {
   const f = fixture();
@@ -104,4 +104,18 @@ test('błąd kanału nie odbiera XP; pusta konfiguracja wyłącza powiadomienia'
   assert.equal(levelRanking(f.store.snapshot(), 'guild')[0].xp, 105);
   assert.equal(validateLevelSettings({ ...levelDefaults, announcementChannelId: '' }).announcementChannelId, null);
   assert.throws(() => validateLevelSettings({ ...levelDefaults, announcementChannelId: 'zly-kanal' }));
+});
+
+test('karta pokazuje lokalny avatar, ranking oraz XP w bieżącym poziomie',()=>{
+ const card=buildLevelCard({user:{username:'Gracz',displayAvatarURL:()=> 'https://cdn.discordapp.com/avatar.png'},member:{displayName:'Nazwa serwerowa',displayAvatarURL:()=> 'https://cdn.discordapp.com/guild.png'},account:{xp:105,messageCount:7,voiceMinutes:2},rank:3,guild:{name:'Strefa'},timestamp:1000000}).toJSON();
+ assert.equal(card.title,'⭐ Karta poziomu — Nazwa serwerowa');assert.equal(card.thumbnail.url,'https://cdn.discordapp.com/guild.png');
+ assert.match(card.description,/Poziom 1 · Ranking #3/);assert.match(card.description,/5 \/ 300 XP/);assert.match(card.description,/295 XP/);assert.match(card.description,/łącznie \*\*105 XP/);assert.equal(card.description.match(/[█░]/g).length,20);assert.match(card.footer.text,/Strefa.*7.*2 min/);
+});
+test('karta nowej osoby nie wymyśla miejsca w rankingu, próg rozpoczyna nowy pasek',()=>{
+ for(const xp of [0,100,400]){const card=buildLevelCard({user:{username:'Nowy'},account:{xp},rank:null}).toJSON();assert.match(card.description,/Ranking —/);assert.equal(card.description.includes('█'),false);assert.match(card.description,/░{20}/);}
+});
+test('level i poziom pokazują kartę wybranej osoby bez zmiany jej XP',async()=>{
+ const f=fixture();await f.store.update(s=>{s.levels.guilds.guild={users:{a:{xp:105,messageCount:1,voiceMinutes:0},b:{xp:500}},settings:levelDefaults};});
+ for(const commandName of ['level','poziom']){let reply;await f.system().command({commandName,guildId:'guild',guild:f.guild,user:f.b.user,options:{getUser:()=>f.a.user,getMember:()=>f.a},reply:async payload=>{reply=payload;}});assert.match(reply.embeds[0].toJSON().description,/Ranking #2/);assert.deepEqual(reply.allowedMentions,{parse:[]});}
+ assert.equal(levelRanking(f.store.snapshot(),'guild').find(u=>u.id==='a').xp,105);
 });
