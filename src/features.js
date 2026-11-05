@@ -15,7 +15,7 @@ import {
 
 import { logSettings } from './log-settings.js';
 import { clearMessages, clearMessagesCommand } from './clear-messages.js';
-import { collectServerStatistics } from './server-statistics.js';
+import { collectServerStatistics, ensureStatisticsMembers } from './server-statistics.js';
 import { botInvite } from './guild-store.js';
 const command = name => new SlashCommandBuilder().setName(name);
 const adminCommand = name => command(name);
@@ -91,7 +91,7 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
   const pendingVoiceLogs = new Map();
 
   async function statisticsEmbed(guild) {
-    await guild.members.fetch();
+    const complete = await ensureStatisticsMembers(guild);
     const humans = guild.members.cache.filter(member => !member.user.bot).size;
     const bots = guild.members.cache.filter(member => member.user.bot).size;
     const channels = guild.channels.cache;
@@ -107,8 +107,8 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
       .setTitle(`📊 Statystyki — ${guild.name}`)
       .addFields(
         { name: '👥 Członkowie', value: String(guild.memberCount ?? humans + bots), inline: true },
-        { name: '🧑 Użytkownicy', value: String(humans), inline: true },
-        { name: '🤖 Boty', value: String(bots), inline: true },
+        { name: '🧑 Użytkownicy', value: complete ? String(humans) : 'Wczytywanie…', inline: true },
+        { name: '🤖 Boty', value: complete ? String(bots) : 'Wczytywanie…', inline: true },
         { name: '💬 Kanały tekstowe', value: String(textChannels), inline: true },
         { name: '🔊 Kanały głosowe', value: String(voiceChannels), inline: true },
         { name: '🗂️ Kategorie', value: String(categories), inline: true },
@@ -124,14 +124,15 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
   }
 
   async function publishStatistics(guild) {
+    await ensureStatisticsMembers(guild);
     const statistics = collectServerStatistics(guild);
     if (statistics) await featureStore.update(state => { state.serverStatistics = statistics; });
     return statistics;
   }
 
   async function refreshStatisticsChannels(guild) {
-    await guild.members.fetch({ withPresences: true });
-    await publishStatistics(guild);
+    const statistics = await publishStatistics(guild);
+    if (!statistics) return; // Zachowaj ostatnie liczniki do czasu pobrania pełnych danych.
     const config = featureStore.snapshot().statisticsChannels;
     if (config?.onlineChannelId || config?.membersChannelId || config?.botsChannelId) {
       const members = guild.members.cache;

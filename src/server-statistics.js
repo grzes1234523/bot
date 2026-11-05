@@ -18,3 +18,29 @@ export function readServerStatistics(snapshot, guildId, now = Date.now()) {
   if (snapshot.members !== snapshot.bots + snapshot.humans || snapshot.online > snapshot.members) return null;
   return snapshot;
 }
+
+// Wspólna blokada dla panelu, komend i automatycznych liczników.
+export function createStatisticsMemberLoader({now=Date.now}={}) {
+  const requests=new WeakMap();
+  return async function ensureMembers(guild) {
+    if(collectServerStatistics(guild,now()))return true;
+    let state=requests.get(guild);
+    if(!state){state={nextAttempt:0,pending:null};requests.set(guild,state);}
+    if(state.pending)return state.pending;
+    if(now()<state.nextAttempt)return false;
+    state.nextAttempt=now()+35000;
+    state.pending=(async()=>{
+      try{
+        await guild.members.fetch({withPresences:true});
+        return Boolean(collectServerStatistics(guild,now()));
+      }catch(error){
+        if(error.name!=='GatewayRateLimitError')throw error;
+        const seconds=Number(error.retry_after??error.retryAfter??error.data?.retry_after??String(error.message).match(/Retry after ([\d.]+) seconds/i)?.[1]);
+        state.nextAttempt=Math.max(state.nextAttempt,now()+(Number.isFinite(seconds)&&seconds>0?seconds*1000:35000)+1000);
+        return Boolean(collectServerStatistics(guild,now()));
+      }finally{state.pending=null;}
+    })();
+    return state.pending;
+  };
+}
+export const ensureStatisticsMembers=createStatisticsMemberLoader();

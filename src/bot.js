@@ -121,7 +121,7 @@ function initializeGuild(guild) {
   return task;
 }
 client.on(Events.GuildCreate, guild => {
-  void initializeGuild(guild).then(() => featureHandlers.refreshStatisticsChannels(guild)).then(() => publishWorkerStatus())
+  void initializeGuild(guild).then(() => publishWorkerStatus())
     .catch(error => reportFailure('Konfiguracja nowego serwera nie powiodła się', error));
 });
 client.on(Events.GuildDelete, guild => { runtimes.remove(guild.id); void publishWorkerStatus(); });
