@@ -253,24 +253,15 @@ Stan pytań, kół i wyniku jest trwale zapisany w `community.guilds[ID].million
 Lista „Serwery” pokazuje serwery, których zalogowany użytkownik jest właścicielem lub ma uprawnienie Administrator/Zarządzanie serwerem. Użyj „Odśwież serwery” po dodaniu bota albo zmianie uprawnień. Odświeżenie pobiera aktualne dane konta Discord i pełną listę instalacji bota, również przy ponad 200 serwerach. Powrót do karty panelu aktualizuje listę; dane konta są buforowane najwyżej minutę. Token dostępu OAuth jest przechowywany wyłącznie w pamięci sesji serwera i nie jest wysyłany do przeglądarki. Gdy wygaśnie, panel pokazuje przycisk ponownego logowania.
 
 
-## Komenda przebudowy kanałów serwera
+## Dodawanie kanałów, kategorii i ról
 
-`/serwer-przebuduj` pokazuje **wyłącznie podgląd** wcześniej zaproponowanego układu: 10 kategorii i 41 kanałów (łącznie 51). Właściciel serwera otrzymuje ostrzeżenie, listę nowych kanałów i plik JSON ze starą strukturą i uprawnieniami. To nie jest kopia wiadomości: usuniętych wiadomości, wątków i identyfikatorów kanałów nie można odzyskać z tego pliku.
+- `/rozbuduj-serwer` uzupełnia cały układ: maksymalnie 10 kategorii, 41 kanałów i 8 ról. Wykonuje go właściciel serwera. Istniejące elementy o pasujących nazwach są używane ponownie; kolejne wywołanie nie duplikuje utworzonego układu.
+- `/kategoria-dodaj nazwa:Zabawy` tworzy jedną kategorię.
+- `/kanal-dodaj nazwa:milionerzy kategoria:Zabawy typ:Tekstowy` tworzy jeden kanał; kategoria jest opcjonalna, typ domyślnie tekstowy.
+- `/rola-dodaj nazwa:VIP kolor:#F1C40F` tworzy jedną rolę. Kolor jest opcjonalny.
 
-Przebudowę może zatwierdzić tylko właściciel serwera, nie zwykły administrator. Przycisk w podglądzie otwiera formularz wymagający dokładnego wpisania `USUN ID_SERWERA`. Plan wygasa po 5 minutach. Bot ponownie sprawdza właściciela, uprawnienia, limity oraz zgodność starych kanałów z podglądem. Zmiana kanałów od podglądu wymaga nowego planu.
+Role domyślne: Właściciel, Administrator, Moderator, VIP, Gracz, Gość, Bot i REKRUTACYJNY. Są tworzone bez globalnych uprawnień Administratora lub moderacji i nie są automatycznie nadawane członkom. Rola o nazwie Właściciel nie zmienia właściciela Discorda. Uprawnienia ról można dostosować w ustawieniach Discorda. Nowe prywatne kanały administracji i logów otrzymują dostęp dla ról Administrator i Moderator.
 
-Bot najpierw tworzy cały nowy układ, a dopiero potem usuwa dokładnie stare ID z zatwierdzonego podglądu, z kategoriami na końcu. Dlatego potrzebuje wolnego miejsca na 51 kanałów oraz 10 kategorii przed rozpoczęciem; nie zaczyna od usuwania w celu zwolnienia miejsca. W serwerze społecznościowym przełącza kanały zasad i aktualizacji społeczności na nowe odpowiedniki. Role i członkowie, salda, poziomy oraz zapisane podania pozostają. Kanały głosowe zostaną usunięte, więc trwające rozmowy będą przerwane.
+Żadna z tych komend nie usuwa, nie przenosi i nie zmienia istniejących kanałów ani ról. Nie zmienia też konfiguracji innych modułów, sald, XP i podań. Uprawnienia istniejących elementów pozostają bez zmian. W przypadku błędu wykonana część dodawania zostaje zachowana, a następne wywołanie pomija już istniejące elementy.
 
-Po wykonaniu bot aktualizuje wybór kanałów statystyk, logów, rekrutacji, powitań/pożegnań, pomysłów, poziomów, weryfikacji i auto kanałów. Dotychczasowe panele ticketów tego serwera zostają oznaczone jako nieaktywne. Nowe panele rekrutacji, weryfikacji i ticketów należy opublikować ponownie odpowiednimi komendami. Układ i ustawienia innych serwerów pozostają bez zmian.
-
-`/serwer-przebuduj tryb:Status` pokazuje postęp oraz plik struktury. `tryb:Anuluj` anuluje podgląd lub zatrzymuje trwającą pracę po bieżącym żądaniu Discorda; nie cofa już wykonanych usunięć. Błąd zatrzymuje dalsze kroki. Restart nigdy nie wznawia usuwania automatycznie: po przerwaniu trzeba sprawdzić status i anulować stary przebieg przed nowym podglądem. Komenda nie jest wywoływana automatycznie podczas wdrożenia.
-
-
-### Wykonanie przebudowy jednym poleceniem
-
-Właściciel może uruchomić przebudowę bez przycisku i formularza: `/serwer-przebuduj potwierdzenie:USUN ID_SERWERA`. Dokładna fraza z ID bieżącego serwera stanowi potwierdzenie bezpowrotnego usunięcia starych kanałów i wiadomości. Bot najpierw dostarcza plik struktury, a następnie wykonuje opisany wcześniej układ. Błędna fraza nie rozpoczyna operacji. Wywołanie bez opcji `potwierdzenie` nadal służy tylko do podglądu. Tryby Status i Anuluj pozostają dostępne. Komenda nie jest wywoływana podczas instalacji ani wdrożenia.
-
-
-### Prosta komenda bez parametrów
-
-`/przebuduj-serwer` wykonuje cały opisany układ **bez parametrów, przycisku ani formularza**. Sama nazwa i opis komendy informują, że usuwa stare kanały oraz ich wiadomości. Uprawniony jest wyłącznie właściciel bieżącego serwera. Pozostają sprawdzenia uprawnień bota, limitów, kopia struktury i trwały zapis postępu. Nie wpływa na pozostałe serwery bota. Do spokojnego obejrzenia układu można nadal użyć `/serwer-przebuduj` bez opcji. Automatyczne wdrożenie nie uruchamia żadnej przebudowy.
+Starsze nazwy `/przebuduj-serwer` i `/serwer-przebuduj` również oznaczają teraz wyłącznie dodawanie brakujących elementów. Opcje usuwania nie są rejestrowane, a dawne przyciski i formularze przebudowy są odrzucane. Moduł dawnej destrukcyjnej przebudowy nie jest podłączony do bota ani rejestru komend. Wdrożenie nie wykonuje komend na serwerze automatycznie.
