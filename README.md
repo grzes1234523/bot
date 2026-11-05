@@ -246,3 +246,8 @@ Komenda `/zabawa milionerzy` rozpoczyna publiczną grę jednego gracza. Jest 12 
 Koła 50:50 i Zmiana pytania działają po jednym razie na grę. Zmiana zachowuje poziom trudności; jeżeli na bieżącym pytaniu użyto 50:50, nowe pytanie też ma dwie aktywne odpowiedzi. Na pytanie jest 5 minut. Koła rozpoczynają nowy czas na odpowiedź. Bot sprawdza wygasłe gry co minutę oraz po restarcie. Przyciski działają tylko dla autora, kanału i wiadomości danej gry, z kontrolą wersji przeciw wielokrotnemu klikaniu.
 
 Stan pytań, kół i wyniku jest trwale zapisany w `community.guilds[ID].millionaires`, osobno dla każdego serwera. Limit to jedna aktywna gra na osobę i 50 równoległych gier na serwerze. Zachowywanych jest do 200 ostatnich zakończonych gier obok aktywnych. Panel Zabawy pozwala wyłączyć Milionerów i pokazuje liczbę rozpoczętych gier, aktywnych rozgrywek oraz zdobytych milionów. Endpoint panelu zwraca tylko podsumowanie, bez poprawnych odpowiedzi.
+
+
+### Odświeżanie listy serwerów
+
+Lista „Serwery” pokazuje serwery, których zalogowany użytkownik jest właścicielem lub ma uprawnienie Administrator/Zarządzanie serwerem. Użyj „Odśwież serwery” po dodaniu bota albo zmianie uprawnień. Odświeżenie pobiera aktualne dane konta Discord i pełną listę instalacji bota, również przy ponad 200 serwerach. Powrót do karty panelu aktualizuje listę; dane konta są buforowane najwyżej minutę. Token dostępu OAuth jest przechowywany wyłącznie w pamięci sesji serwera i nie jest wysyłany do przeglądarki. Gdy wygaśnie, panel pokazuje przycisk ponownego logowania.

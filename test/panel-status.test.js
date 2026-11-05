@@ -66,7 +66,7 @@ async function fixture(t, {
       calls.push(String(url));
       if (url === 'https://discord.com/api/v10/oauth2/token') return Response.json({ access_token: 'test-access-token' });
       if (url === 'https://discord.com/api/v10/users/@me') return Response.json({ id: '123456789012345682', username: 'tester' });
-      if (url === 'https://discord.com/api/v10/users/@me/guilds') return Response.json(oauthGuilds ?? [{ id: guildId, permissions }]);
+      if (String(url).startsWith('https://discord.com/api/v10/users/@me/guilds')) return Response.json(oauthGuilds ?? [{ id: guildId, permissions }]);
       throw new Error(`Niedozwolone połączenie w teście: ${url}`);
     });
     try {
@@ -421,4 +421,28 @@ test('wybór serwera izoluje ekonomię, tickety i rekrutację oraz blokuje obce 
   response = await panel.request('/api/economy/settings', cookie, { headers: { 'X-Guild-ID': guildId } }); assert.equal(response.status, 409);
   allowed = false;
   assert.equal((await panel.request('/api/economy/settings', cookie)).status, 403);
+});
+
+
+test('Odśwież serwery pobiera nowo dodany serwer bez ponownego logowania i nie ujawnia tokenu', async t => {
+  const guilds = [{ id: guildId, name: 'Stary', permissions: '32' }];
+  const panel = await fixture(t, { mode: 'rest', oauthGuilds: guilds });
+  const cookie = await panel.authenticate();
+  const other = '123456789012345680';
+  guilds.push({ id: other, name: 'Nowy po logowaniu', owner: true, permissions: '0' });
+  panel.client.guilds.cache.set(other, { name: 'Nowy po logowaniu' });
+  let refreshes = 0, expired = false;
+  const mocked = t.mock.method(globalThis,'fetch',async (url, options) => {
+    assert.ok(String(url).startsWith('https://discord.com/api/v10/users/@me/guilds?'));
+    assert.equal(options.headers.Authorization,'Bearer test-access-token'); refreshes++;
+    return expired ? Response.json({}, { status: 401 }) : Response.json(guilds);
+  });
+  let response = await panel.request('/api/guilds?refresh=1',cookie); assert.equal(response.status,200);
+  const data = await response.json(); assert.equal(data.guilds.length,2);
+  assert.equal(data.guilds.find(g => g.id === other).installed,true); assert.equal(refreshes,1);
+  assert.ok(!JSON.stringify(data).includes('test-access-token'));
+  response = await panel.request('/api/session',cookie); assert.ok(!JSON.stringify(await response.json()).includes('test-access-token'));
+  expired = true; response = await panel.request('/api/guilds?refresh=1',cookie);
+  assert.equal(response.status,401); assert.equal((await response.json()).needsLogin,true);
+  mocked.mock.restore();
 });

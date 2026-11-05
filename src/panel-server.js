@@ -12,14 +12,13 @@ import { logSettings, logEvents, saveLogSettings } from './log-settings.js';
 import { readServerStatistics } from './server-statistics.js';
 import { guildStore, botInvite } from './guild-store.js';
 import { millionaireSummary } from './millionaires.js';
+import { fetchUserGuilds, fetchBotGuildIds, manageableGuilds as selectManageableGuilds } from './guild-discovery.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
 const API = 'https://discord.com/api/v10';
 const sessions = new Map();
 const SESSION_TTL = 8 * 60 * 60 * 1000;
-const ADMINISTRATOR = 1n << 3n;
-const MANAGE_GUILD = 1n << 5n;
 
 const json = (res, status, data) => {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -60,13 +59,6 @@ function parseSession(req, secret) {
 function setSessionCookie(res, id, secret, baseUrl) {
   const secure = baseUrl.startsWith('https://') ? '; Secure' : '';
   res.setHeader('Set-Cookie', `strefa_panel=${id}.${cookieSignature(id, secret)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}${secure}`);
-}
-
-function hasManagePermission(permissions) {
-  try {
-    const bits = BigInt(permissions ?? '0');
-    return (bits & (ADMINISTRATOR | MANAGE_GUILD)) !== 0n;
-  } catch { return false; }
 }
 
 export function startPanelServer({ client, getApplications: rootGetApplications, getGuildApplications, featureStore: rootFeatureStore, discordMode = 'gateway', getWorkerStatus, refreshData, workerStatusTimeoutMs = 2000, refreshDataTimeoutMs = 2000 }) {
@@ -140,23 +132,21 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         }
         const token = await tokenResponse.json();
         const authHeaders = { Authorization: `Bearer ${token.access_token}` };
-        const [userResponse, guildsResponse] = await Promise.all([
+        const [userResponse, guilds] = await Promise.all([
           fetch(`${API}/users/@me`, { headers: authHeaders }),
-          fetch(`${API}/users/@me/guilds`, { headers: authHeaders }),
+          fetchUserGuilds(token.access_token),
         ]);
-        if (!userResponse.ok || !guildsResponse.ok) throw new Error('Discord nie zwrócił danych konta i serwerów.');
+        if (!userResponse.ok) throw new Error('Discord nie zwrócił danych konta.');
         const user = await userResponse.json();
-        const guilds = await guildsResponse.json();
-        const manageableGuilds = guilds.filter(item => hasManagePermission(item.permissions)).map(item => ({ id: item.id, name: item.name }));
-        let botIds = new Set(client.guilds.cache.keys());
-        if (discordMode === 'rest' && client.guilds.fetch) botIds = new Set((await client.guilds.fetch()).keys());
+        const manageableGuilds = selectManageableGuilds(guilds);
+        const botIds = await fetchBotGuildIds(client, discordMode);
         const selected = manageableGuilds.find(item => item.id === PRIMARY_GUILD_ID && botIds.has(item.id)) ?? manageableGuilds.find(item => botIds.has(item.id));
         if (selected && !client.guilds.cache.has(selected.id) && client.guilds.fetch) await client.guilds.fetch(selected.id);
         const selectedGuild = selected ? client.guilds.cache.get(selected.id) : null;
         if (selectedGuild?.channels?.fetch && selectedGuild?.roles?.fetch) await Promise.all([selectedGuild.channels.fetch(), selectedGuild.roles.fetch()]);
         const newId = crypto.randomBytes(32).toString('hex');
         sessions.delete(current.id);
-        sessions.set(newId, { createdAt: Date.now(), user: { id: user.id, username: user.global_name || user.username }, guildId: selected?.id || PRIMARY_GUILD_ID, manageableGuilds, botGuildIds: [...botIds], canManage: Boolean(selected) });
+        sessions.set(newId, { createdAt: Date.now(), discordAccessToken: token.access_token, guildListUpdatedAt: Date.now(), user: { id: user.id, username: user.global_name || user.username }, guildId: selected?.id || PRIMARY_GUILD_ID, manageableGuilds, botGuildIds: [...botIds], canManage: Boolean(selected) });
         setSessionCookie(res, newId, PANEL_SESSION_SECRET, baseUrl);
         res.writeHead(302, { Location: '/' });
         return res.end();
@@ -173,9 +163,15 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         const current = configReady ? parseSession(req, PANEL_SESSION_SECRET) : null;
         if (route === '/api/guilds') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
+          if (requestUrl.searchParams.get('refresh') === '1' || Date.now() - (current.value.guildListUpdatedAt || 0) >= 60000) {
+            try {
+              const guilds = await fetchUserGuilds(current.value.discordAccessToken);
+              current.value.manageableGuilds = selectManageableGuilds(guilds);
+              current.value.guildListUpdatedAt = Date.now();
+            } catch (error) { return json(res, error.status === 401 ? 401 : 502, { error: error.status === 401 ? error.message : 'Nie można odświeżyć serwerów z Discorda. Spróbuj ponownie.', needsLogin: error.status === 401 }); }
+          }
           if (req.method === 'GET') {
-            let botIds = new Set(client.guilds.cache.keys());
-            if (discordMode === 'rest' && client.guilds.fetch) botIds = new Set((await client.guilds.fetch()).keys());
+            const botIds = await fetchBotGuildIds(client, discordMode);
             current.value.botGuildIds = [...botIds];
             return json(res, 200, { selected: GUILD_ID, guilds: (current.value.manageableGuilds ?? []).map(guild => ({ ...guild, installed: botIds.has(guild.id), invite: botInvite(CLIENT_ID, guild.id) })) });
           }
