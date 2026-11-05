@@ -18,6 +18,7 @@ import { withTimeout } from './async-operation.js';
 import { levelCommands } from './levels.js';
 import { welcomeCommands, farewellCommands } from './welcome.js';
 import { communityCommands } from './community.js';
+import { createServerRebuildSystem, rebuildCommands } from './server-rebuild.js';
 const cfg = readConfig();
 const dataDirectory = process.env.STREFA_BOT_DATA_DIR?.trim() || path.join(process.cwd(), 'data');
 const store = new ApplicationStore(path.join(dataDirectory, 'applications.json'));
@@ -33,11 +34,12 @@ const client = new Client({ intents: [
   GatewayIntentBits.GuildMessages,
   GatewayIntentBits.GuildModeration,
 ] });
-const statusReporter = new BotStatusReporter({ client, cfg });
+const statusReporter = new BotStatusReporter({ client, cfg, getChannelId:()=>featureStore.snapshot().botStatusChannelId });
 const workerStatus = new WorkerStatus(cfg);
 const runtimes = createGuildRuntimes({ client, cfg, applicationStore: store, applicationStores, reportFailure, featureStore });
 const featureHandlers = runtimes.features;
 const proSystem = createProSystem({ client, featureStore, cfg });
+const serverRebuild = createServerRebuildSystem({ client, featureStore, cfg });
 const levelSystem = runtimes.levels;
 const welcomeSystem = runtimes.welcome;
 const farewellSystem = runtimes.farewell;
@@ -104,7 +106,7 @@ async function initializeGuild(guild) {
   await applicationStores.get(guild.id);
   const runtime = runtimes.get(guild.id);
   await runtime.features.refreshStatisticsChannels(guild).catch(error => reportFailure('Początkowe statystyki serwera', error));
-  for (const command of [...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
+  for (const command of [...rebuildCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands]) await guild.commands.create(command.toJSON()).catch(error => reportFailure(`Nie udało się zarejestrować /${command.name}`, error));
   await runtime.recruitment.recoverUnsent(guild);
 }
 client.on(Events.GuildCreate, guild => {
@@ -114,6 +116,11 @@ client.on(Events.GuildCreate, guild => {
 client.on(Events.GuildDelete, guild => { runtimes.remove(guild.id); void publishWorkerStatus(); });
 
 client.on(Events.InteractionCreate, async interaction => {
+  if ((interaction.isChatInputCommand() && interaction.commandName === 'serwer-przebuduj') || ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith('strefa:rebuild:'))) {
+    try { if (interaction.isChatInputCommand()) await serverRebuild.command(interaction); else if (interaction.isButton()) await serverRebuild.button(interaction); else await serverRebuild.modal(interaction); }
+    catch(error) { reportFailure('Błąd przebudowy serwera',error); const payload={content:'Nie udało się przygotować przebudowy. Sprawdź status komendy.'};if(interaction.deferred||interaction.replied)await interaction.editReply(payload).catch(()=>{});else await interaction.reply({...payload,flags:MessageFlags.Ephemeral}).catch(()=>{}); }
+    return;
+  }
   if ((interaction.isChatInputCommand() && communityCommands.some(command => command.name === interaction.commandName)) || (interaction.isButton() && interaction.customId.startsWith('strefa:community:'))) {
     try { if (interaction.isButton()) await communitySystem.button(interaction); else await communitySystem.command(interaction); }
     catch (error) { reportFailure('Błąd zabawy lub pomysłu', error); const payload = { content: 'Nie udało się wykonać działania. Sprawdź konfigurację kanału i uprawnienia bota.' }; if (interaction.deferred) await interaction.editReply(payload).catch(() => {}); else if (!interaction.replied) await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral }).catch(() => {}); }

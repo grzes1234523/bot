@@ -251,3 +251,16 @@ Stan pytań, kół i wyniku jest trwale zapisany w `community.guilds[ID].million
 ### Odświeżanie listy serwerów
 
 Lista „Serwery” pokazuje serwery, których zalogowany użytkownik jest właścicielem lub ma uprawnienie Administrator/Zarządzanie serwerem. Użyj „Odśwież serwery” po dodaniu bota albo zmianie uprawnień. Odświeżenie pobiera aktualne dane konta Discord i pełną listę instalacji bota, również przy ponad 200 serwerach. Powrót do karty panelu aktualizuje listę; dane konta są buforowane najwyżej minutę. Token dostępu OAuth jest przechowywany wyłącznie w pamięci sesji serwera i nie jest wysyłany do przeglądarki. Gdy wygaśnie, panel pokazuje przycisk ponownego logowania.
+
+
+## Komenda przebudowy kanałów serwera
+
+`/serwer-przebuduj` pokazuje **wyłącznie podgląd** wcześniej zaproponowanego układu: 10 kategorii i 41 kanałów (łącznie 51). Właściciel serwera otrzymuje ostrzeżenie, listę nowych kanałów i plik JSON ze starą strukturą i uprawnieniami. To nie jest kopia wiadomości: usuniętych wiadomości, wątków i identyfikatorów kanałów nie można odzyskać z tego pliku.
+
+Przebudowę może zatwierdzić tylko właściciel serwera, nie zwykły administrator. Przycisk w podglądzie otwiera formularz wymagający dokładnego wpisania `USUN ID_SERWERA`. Plan wygasa po 5 minutach. Bot ponownie sprawdza właściciela, uprawnienia, limity oraz zgodność starych kanałów z podglądem. Zmiana kanałów od podglądu wymaga nowego planu.
+
+Bot najpierw tworzy cały nowy układ, a dopiero potem usuwa dokładnie stare ID z zatwierdzonego podglądu, z kategoriami na końcu. Dlatego potrzebuje wolnego miejsca na 51 kanałów oraz 10 kategorii przed rozpoczęciem; nie zaczyna od usuwania w celu zwolnienia miejsca. W serwerze społecznościowym przełącza kanały zasad i aktualizacji społeczności na nowe odpowiedniki. Role i członkowie, salda, poziomy oraz zapisane podania pozostają. Kanały głosowe zostaną usunięte, więc trwające rozmowy będą przerwane.
+
+Po wykonaniu bot aktualizuje wybór kanałów statystyk, logów, rekrutacji, powitań/pożegnań, pomysłów, poziomów, weryfikacji i auto kanałów. Dotychczasowe panele ticketów tego serwera zostają oznaczone jako nieaktywne. Nowe panele rekrutacji, weryfikacji i ticketów należy opublikować ponownie odpowiednimi komendami. Układ i ustawienia innych serwerów pozostają bez zmian.
+
+`/serwer-przebuduj tryb:Status` pokazuje postęp oraz plik struktury. `tryb:Anuluj` anuluje podgląd lub zatrzymuje trwającą pracę po bieżącym żądaniu Discorda; nie cofa już wykonanych usunięć. Błąd zatrzymuje dalsze kroki. Restart nigdy nie wznawia usuwania automatycznie: po przerwaniu trzeba sprawdzić status i anulować stary przebieg przed nowym podglądem. Komenda nie jest wywoływana automatycznie podczas wdrożenia.

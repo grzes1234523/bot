@@ -36,11 +36,13 @@ export class BotStatusReporter {
   #queue = Promise.resolve();
   #errors = new Map();
   #recentErrors = [];
+  #getChannelId;
 
-  constructor({ client, cfg, now = () => Date.now() }) {
+  constructor({ client, cfg, now = () => Date.now(), getChannelId }) {
     this.#client = client;
     this.#cfg = cfg;
     this.#now = now;
+    this.#getChannelId = getChannelId;
   }
 
   online() {
@@ -71,13 +73,13 @@ export class BotStatusReporter {
   }
 
   async #resolveChannel() {
-    if (this.#channel) return this.#channel;
+    const configuredId=this.#getChannelId?.() || process.env.BOT_STATUS_CHANNEL_ID?.trim();
+    if (this.#channel && (!configuredId || this.#channel.id===configuredId)) return this.#channel;
     if (this.#resolving) return this.#resolving;
     this.#resolving = (async () => {
       const guild = this.#client.guilds.cache.get(this.#cfg.guildId) ?? await this.#client.guilds.fetch(this.#cfg.guildId);
       if (!guild) throw new Error('Bot nie ma dostępu do serwera kanału statusu.');
       const me = guild.members.me ?? await guild.members.fetchMe();
-      const configuredId = process.env.BOT_STATUS_CHANNEL_ID?.trim();
       let channel;
       if (configuredId) {
         channel = await guild.channels.fetch(configuredId);

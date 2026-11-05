@@ -186,3 +186,14 @@ test('ukrywa również nieznane sekrety w JSON i kluczach ze standardowym prefik
   const text = sanitizeDiagnostic('{"client_secret":"unknown-oauth-value","access_token":"unknown-access-value"} DISCORD_TOKEN=unknown-bot-value select * from private_form_answers');
   for (const secret of ['unknown-oauth-value', 'unknown-access-value', 'unknown-bot-value', 'private_form_answers']) assert.ok(!text.includes(secret), secret);
 });
+
+
+test('po przebudowie przełącza zapisany kanał statusu bez używania usuniętego cache', async t => {
+  const f=fixture(t),oldId='45678901234567890',newId='56789012345678901';let selected=oldId;
+  f.channels.set(oldId,f.makeChannel({id:oldId}));f.channels.set(newId,f.makeChannel({id:newId}));
+  const fetched=[];const fetch=f.guild.channels.fetch;
+  f.guild.channels.fetch=async id=>{fetched.push(id);return fetch(id);};
+  const reporter=new BotStatusReporter({client:f.client,cfg:f.cfg,getChannelId:()=>selected});
+  assert.equal(await reporter.online(),true);selected=newId;assert.equal(await reporter.info('Przebudowa','Nowy kanał'),true);
+  assert.deepEqual(fetched,[oldId,newId]);assert.equal(f.sent.length,2);
+});

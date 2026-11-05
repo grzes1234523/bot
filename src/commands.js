@@ -3,6 +3,7 @@ import { featureCommands } from './features.js';
 import { levelCommands } from './levels.js';
 import { welcomeCommands, farewellCommands } from './welcome.js';
 import { communityCommands } from './community.js';
+import { rebuildCommands } from './server-rebuild.js';
 
 const applicationId = command => command.addStringOption(opt =>
   opt.setName('id').setDescription('ID podania, np. A3D4F501').setRequired(true));
@@ -49,4 +50,4 @@ export const recruitmentCommands = [
   new SlashCommandBuilder().setName('rekrutacja-pomoc').setDescription('Pokazuje instrukcję składania podań.'),
 ];
 
-export const commands = [...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands];
+export const commands = [...rebuildCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands];
