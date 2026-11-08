@@ -17,6 +17,7 @@ import { BotStatusReporter, sanitizeDiagnostic } from './status-reporter.js';
 import { WorkerStatus } from './worker-status.js';
 import { withTimeout } from './async-operation.js';
 import { levelCommands } from './levels.js';
+import { changelogCommands, handleChangelogCommand } from './changelog.js';
 import { welcomeCommands, farewellCommands } from './welcome.js';
 import { communityCommands } from './community.js';
 import { createServerBuilderSystem, serverBuilderCommands } from './server-builder.js';
@@ -109,7 +110,7 @@ function initializeGuild(guild) {
   if (initializingGuilds.has(guild.id)) return initializingGuilds.get(guild.id);
   const task = (async () => {
     const registration = await registerGuildCommands({ guild,
-      commands: [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands, ...proCommands],
+      commands: [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands, ...changelogCommands, ...proCommands],
       isActive: () => client.guilds.cache.has(guild.id) && !shutdownPromise, reportFailure });
     if (!registration.ok || !client.guilds.cache.has(guild.id)) return;
     await applicationStores.get(guild.id);
@@ -149,6 +150,11 @@ client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isChatInputCommand() && welcomeCommands.some(command => command.name === interaction.commandName)) {
     try { await welcomeSystem.command(interaction); }
     catch (error) { reportFailure('Błąd konfiguracji powitań', error); }
+    return;
+  }
+  if (interaction.isChatInputCommand() && interaction.commandName === 'aktualizacja') {
+    try { await handleChangelogCommand(interaction, featureStore); }
+    catch (error) { reportFailure('Błąd zapisu aktualizacji', error); if (!interaction.replied && !interaction.deferred) await interaction.reply({content:errorMessage,flags:MessageFlags.Ephemeral}).catch(()=>{}); }
     return;
   }
   if (interaction.isChatInputCommand() && levelCommands.some(command => command.name === interaction.commandName)) {

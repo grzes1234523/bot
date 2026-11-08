@@ -674,6 +674,17 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         return json(res, 404, { error: 'Nie znaleziono endpointu.' });
       }
 
+      if (req.method === 'GET' && route === '/aktualizacje') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        return fs.createReadStream(path.join(PANEL_DIR, 'aktualizacje.html')).pipe(res);
+      }
+      if (req.method === 'GET' && route === '/aktualizacje.js') {
+        await rootFeatureStore.refresh();
+        const entries = rootFeatureStore.snapshot().changelog?.[PRIMARY_GUILD_ID] ?? [];
+        const safeJson = JSON.stringify(Array.isArray(entries) ? entries : []).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+        res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+        return res.end('window.STREFA_CHANGELOG = ' + safeJson + ';');
+      }
       if (req.method === 'GET' && route === '/poziomy-podglad') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         return fs.createReadStream(path.join(PANEL_DIR, 'poziomy-podglad.html')).pipe(res);
