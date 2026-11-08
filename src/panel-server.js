@@ -234,7 +234,7 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
           if (route === '/api/activity') {
             if (req.method !== 'GET') return json(res, 405, { error: 'Historia jest dostępna tylko do odczytu.' });
             const state = featureStore.snapshot(), users = levelRanking(state, GUILD_ID), g = state.community?.guilds?.[GUILD_ID];
-            return json(res, 200, { messages: users.reduce((sum, u) => sum + (u.messageCount || 0), 0), voiceMinutes: users.reduce((sum, u) => sum + (u.voiceMinutes || 0), 0), draws: g?.draws ?? 0, quizzes: g?.quizCount ?? 0, ideas: g?.ideas?.length ?? 0, entries: (state.panelActivity ?? []).filter(entry => entry.guildId === GUILD_ID).slice(-100).reverse() });
+            return json(res, 200, { messages: users.reduce((sum, u) => sum + (u.messageCount || 0), 0), voiceMinutes: users.reduce((sum, u) => sum + (u.voiceMinutes || 0), 0), draws: g?.draws ?? 0, quizzes: g?.quizCount ?? 0, miniGames: g?.miniGamesPlayed ?? 0, millionaires: g?.millionairesPlayed ?? 0, ideas: g?.ideas?.length ?? 0, entries: (state.panelActivity ?? []).filter(entry => entry.guildId === GUILD_ID).slice(-100).reverse() });
           }
           if (req.method === 'POST') {
             if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });

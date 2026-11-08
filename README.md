@@ -293,3 +293,11 @@ Komendy konfiguracji modułów, moderacji i obsługi rekrutacji są domyślnie w
 - **Kreator wiadomości:** `/embed` jest domyślnie administracyjny.
 
 Bot nie nadaje ról ani nie zmienia ich uprawnień. Własne, już skonfigurowane role obsługi nadal są sprawdzane podczas wykonywania komend i interakcji. Jeżeli chcesz delegować komendę roli bez Zarządzania serwerem, jej widoczność ustawisz w Discordzie: Ustawienia serwera → Integracje → StrefaBot → wybrana komenda → Role i członkowie. Przy moderacji przypisz też dozwoloną rolę w panelu Moderacja; sama widoczność nie daje prawa wykonania. Indywidualne nadpisania Discorda mogą mieć pierwszeństwo przed domyślną widocznością.
+
+### Nowe gry z botem
+
+- `/zabawa kolko-krzyzyk` — plansza przycisków 3 × 3; gracz X, bot O.
+- `/zabawa kamien-papier-nozyce` — do dwóch zwycięstw, maksymalnie pięć rund.
+- `/zabawa zgadnij-liczbe` — liczba 1–10, trzy próby, podpowiedzi większa/mniejsza.
+
+W panelu **Zaangażowanie i zabawa → Zabawy** znajdziesz opisy komend i wspólny przełącznik zabaw. Jedna aktywna minigra na osobę i maksymalnie 100 na serwer. Stan jest zapisywany w dotychczasowym magazynie, przyciski wiążemy z autorem, serwerem, kanałem, wiadomością i numerem ruchu. Gra wygasa po 10 minutach. Gry nie pobierają stawek, nie wypłacają waluty i nie zmieniają XP. Quiz, losowanie i Milionerzy pozostają dostępne.
