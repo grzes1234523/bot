@@ -674,6 +674,10 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         return json(res, 404, { error: 'Nie znaleziono endpointu.' });
       }
 
+      if (req.method === 'GET' && route === '/poziomy-podglad') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+        return fs.createReadStream(path.join(PANEL_DIR, 'poziomy-podglad.html')).pipe(res);
+      }
       if (req.method === 'GET' && route === '/') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         return fs.createReadStream(path.join(PANEL_DIR, 'index.html')).pipe(res);
