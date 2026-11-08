@@ -5,13 +5,13 @@ import { proCommands, ticketCategoryKey, ticketPanelPayload, ticketFormModal, em
 
 test('komendy PRO mieszczą się w limitach Discorda i obejmują konfigurację ticketów oraz embedów', () => {
   const json = proCommands.map(command => command.toJSON());
-  const ticket = json.find(command => command.name === 'ticket');
+  const ticket = json.find(command => command.name === 'ticket-admin');
   const embed = json.find(command => command.name === 'embed');
   assert.ok(ticket && embed);
   assert.ok(ticket.options.length <= 25);
   assert.ok(embed.options.length <= 25);
   const ticketNames = ticket.options.map(option => option.name);
-  for (const name of ['kategoria','kategorie','administrator','raport','eksport','panel-edytuj','historia','przekaz']) assert.ok(ticketNames.includes(name), `brak /ticket ${name}`);
+  for (const name of ['kategoria','kategorie','administrator','raport','eksport','panel-edytuj','przekaz']) assert.ok(ticketNames.includes(name), `brak /ticket ${name}`);
   const embedNames = embed.options.map(option => option.name);
   for (const name of ['import','eksport','cofnij','szablon','zaplanuj','harmonogram','pole','akcja','menu-role']) assert.ok(embedNames.includes(name), `brak /embed ${name}`);
   for (const command of json) assert.doesNotThrow(() => JSON.stringify(command));

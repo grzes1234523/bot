@@ -50,4 +50,10 @@ export const recruitmentCommands = [
   new SlashCommandBuilder().setName('rekrutacja-pomoc').setDescription('Pokazuje instrukcję składania podań.'),
 ];
 
+const publicRecruitmentCommands=new Set(['rekrutacja-status','rekrutacja-moje','rekrutacja-pomoc']);
+for(const command of recruitmentCommands){
+  command.setDMPermission(false);
+  if(!publicRecruitmentCommands.has(command.name))command.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+}
+
 export const commands = [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands];

@@ -18,7 +18,7 @@ import { clearMessages, clearMessagesCommand } from './clear-messages.js';
 import { collectServerStatistics, ensureStatisticsMembers } from './server-statistics.js';
 import { botInvite } from './guild-store.js';
 const command = name => new SlashCommandBuilder().setName(name);
-const adminCommand = name => command(name);
+const adminCommand = name => command(name).setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild).setDMPermission(false);
 
 export const featureCommands = [
   command('zapros').setDescription('Pokazuje link do dodania StrefaBota na inny serwer.'),

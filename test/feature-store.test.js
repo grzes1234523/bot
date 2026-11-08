@@ -27,8 +27,8 @@ test('uzupełnia nową strukturę ticketów bez utraty istniejących paneli', as
 
 test('komendy ticketów i embedów rejestrują zestaw poleceń i podpoleceń', () => {
   const serialized = proCommands.map(command => command.toJSON());
-  assert.deepEqual(serialized.map(command => command.name), ['ticket', 'embed']);
-  assert.ok(serialized[0].options.some(option => option.name === 'panel'));
-  assert.ok(serialized[0].options.some(option => option.name === 'statystyki'));
-  assert.ok(serialized[1].options.some(option => option.name === 'kreator'));
+  assert.deepEqual(serialized.map(command => command.name), ['ticket', 'ticket-admin', 'embed']);
+  assert.ok(serialized[1].options.some(option => option.name === 'panel'));
+  assert.ok(serialized[1].options.some(option => option.name === 'statystyki'));
+  assert.ok(serialized[2].options.some(option => option.name === 'kreator'));
 });

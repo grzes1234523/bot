@@ -11,7 +11,7 @@ import { isFeatureCommand, featureCommands } from './features.js';
 import { createGuildRuntimes } from './guild-runtime.js';
 import { createGuildApplicationStores } from './guild-applications.js';
 import { recruitmentCommands } from './commands.js';
-import { createProSystem, isProCommand } from './pro-system.js';
+import { createProSystem, isProCommand, proCommands } from './pro-system.js';
 import { closeDatabase, databaseEnabled } from './database.js';
 import { BotStatusReporter, sanitizeDiagnostic } from './status-reporter.js';
 import { WorkerStatus } from './worker-status.js';
@@ -72,6 +72,7 @@ client.once(Events.ClientReady, async ready => {
   shutdownTimers.add(statusTimer);
   statusTimer.unref?.();
   await statusReporter.online();
+  await registerGuildCommands({guild:{id:'global',name:'Komendy globalne',commands:ready.application.commands},commands:proCommands,isActive:()=>!shutdownPromise,reportFailure});
   const guild = await ready.guilds.fetch(cfg.guildId).catch(() => null);
   if (!guild) console.error('Bot nie ma dostępu do głównego GUILD_ID; pozostałe serwery pozostają aktywne.');
   for (const joined of ready.guilds.cache.values()) await initializeGuild(joined);
@@ -108,7 +109,7 @@ function initializeGuild(guild) {
   if (initializingGuilds.has(guild.id)) return initializingGuilds.get(guild.id);
   const task = (async () => {
     const registration = await registerGuildCommands({ guild,
-      commands: [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands],
+      commands: [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands, ...proCommands],
       isActive: () => client.guilds.cache.has(guild.id) && !shutdownPromise, reportFailure });
     if (!registration.ok || !client.guilds.cache.has(guild.id)) return;
     await applicationStores.get(guild.id);

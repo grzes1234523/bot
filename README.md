@@ -122,24 +122,24 @@ Sprawdzane są m.in. blokady przed podwójnym podaniem, stara baza JSON, formula
 
 ## Nowy system ticketów PRO
 
-Zarejestruj komendy przez `npm run deploy`, a potem użyj `/ticket panel`. Panel możesz opublikować na kanale tekstowym, nadać mu tytuł i opis oraz wskazać kategorię kanałów i rolę obsługi. `/ticket panel-edytuj` aktualizuje istniejącą wiadomość, a `/ticket panel-usun` ją wyłącza. Konfiguracja, przyciski, formularze i zadania automatyczne są zapisane w magazynie, więc działają po restarcie.
+Zarejestruj komendy przez `npm run deploy`, a potem użyj `/ticket-admin panel`. Panel możesz opublikować na kanale tekstowym, nadać mu tytuł i opis oraz wskazać kategorię kanałów i rolę obsługi. `/ticket-admin panel-edytuj` aktualizuje istniejącą wiadomość, a `/ticket-admin panel-usun` ją wyłącza. Konfiguracja, przyciski, formularze i zadania automatyczne są zapisane w magazynie, więc działają po restarcie.
 
-Po kliknięciu użytkownik wybiera kategorię (jeśli skonfigurowano więcej niż jedną) i wypełnia formularz. `/ticket kategoria` tworzy, edytuje lub usuwa kategorię, jej pytania (do pięciu), rolę obsługi i kategorię kanałów Discord; `/ticket kategorie` wyświetla konfigurację. `/ticket administrator` ustawia dodatkowe role uprawnione do obsługi ticketów. `/ticket konfiguracja` ustawia kanał logów, domyślną rolę obsługi, limit zgłoszeń na osobę, przypomnienie o bezczynności, alarm o braku opiekuna oraz opcjonalne automatyczne zamknięcie. Autozamykanie jest domyślnie wyłączone i pozostaje wyłączone, gdy nie ustawisz dodatniej liczby godzin.
+Po kliknięciu użytkownik wybiera kategorię (jeśli skonfigurowano więcej niż jedną) i wypełnia formularz. `/ticket-admin kategoria` tworzy, edytuje lub usuwa kategorię, jej pytania (do pięciu), rolę obsługi i kategorię kanałów Discord; `/ticket-admin kategorie` wyświetla konfigurację. `/ticket-admin administrator` ustawia dodatkowe role uprawnione do obsługi ticketów. `/ticket-admin konfiguracja` ustawia kanał logów, domyślną rolę obsługi, limit zgłoszeń na osobę, przypomnienie o bezczynności, alarm o braku opiekuna oraz opcjonalne automatyczne zamknięcie. Autozamykanie jest domyślnie wyłączone i pozostaje wyłączone, gdy nie ustawisz dodatniej liczby godzin.
 
 Bot sprawdza limit otwartych zgłoszeń i czarną listę, tworzy prywatny kanał, zapisuje odpowiedzi i publikuje panel obsługi. Obsługa może przejąć lub przekazać zgłoszenie, dodać/usunąć uczestnika, zmienić nazwę, zamknąć, otworzyć ponownie i pobrać transkrypt HTML (do 1000 ostatnich wiadomości). Autor może ocenić zamknięte zgłoszenie od 1 do 5. Log działań jest utrzymywany w konfiguracji funkcji i wysyłany na wybrany kanał.
 
-`/ticket raport okres:dzien` i `okres:miesiac` tworzy raport z liczby ticketów, statusów, ocen i aktywności opiekunów. `/ticket eksport` pobiera CSV historii. `/ticket historia` wyświetla zgłoszenia własne lub wskazanej osoby. Przypomnienia i alarmy wymagają działającego procesu bota; harmonogram jest sprawdzany co minutę. Automatyczne zamykanie można włączyć przez `/ticket konfiguracja auto_zamknij_h:...` i wyłączyć wartością `0`.
+`/ticket-admin raport okres:dzien` i `okres:miesiac` tworzy raport z liczby ticketów, statusów, ocen i aktywności opiekunów. `/ticket-admin eksport` pobiera CSV historii. `/ticket historia` wyświetla zgłoszenia własne lub wskazanej osoby. Przypomnienia i alarmy wymagają działającego procesu bota; harmonogram jest sprawdzany co minutę. Automatyczne zamykanie można włączyć przez `/ticket-admin konfiguracja auto_zamknij_h:...` i wyłączyć wartością `0`.
 
 Najważniejsze komendy:
 
-- `/ticket panel` — tworzy panel zgłoszeń.
-- `/ticket panel-edytuj`, `/ticket panel-usun` — edytuje lub wyłącza istniejący panel.
-- `/ticket kategoria`, `/ticket kategorie`, `/ticket administrator` — konfiguruje kategorie, pytania, role i obsługę.
-- `/ticket konfiguracja` — ustawia limit, role, kanał logów, przypomnienia, alarmy i opcjonalne autozamykanie.
-- `/ticket statystyki`, `/ticket raport`, `/ticket eksport`, `/ticket lista`, `/ticket historia` — zestawienia, raporty, CSV i historia.
-- `/ticket przejmij`, `/ticket przekaz`, `/ticket dodaj`, `/ticket usun-uzytkownika` — przypisanie i uczestnicy.
-- `/ticket zamknij`, `/ticket otworz-ponownie`, `/ticket transcript`, `/ticket ocena`, `/ticket usun` — obsługa zgłoszenia.
-- `/ticket blacklist` — blokuje lub odblokowuje osobę.
+- `/ticket-admin panel` — tworzy panel zgłoszeń.
+- `/ticket-admin panel-edytuj`, `/ticket-admin panel-usun` — edytuje lub wyłącza istniejący panel.
+- `/ticket-admin kategoria`, `/ticket-admin kategorie`, `/ticket-admin administrator` — konfiguruje kategorie, pytania, role i obsługę.
+- `/ticket-admin konfiguracja` — ustawia limit, role, kanał logów, przypomnienia, alarmy i opcjonalne autozamykanie.
+- `/ticket-admin statystyki`, `/ticket-admin raport`, `/ticket-admin eksport`, `/ticket-admin lista`, `/ticket historia` — zestawienia, raporty, CSV i historia.
+- `/ticket-admin przejmij`, `/ticket-admin przekaz`, `/ticket-admin dodaj`, `/ticket-admin usun-uzytkownika` — przypisanie i uczestnicy.
+- `/ticket zamknij`, `/ticket-admin otworz-ponownie`, `/ticket transcript`, `/ticket ocena`, `/ticket-admin usun` — obsługa zgłoszenia.
+- `/ticket-admin blacklist` — blokuje lub odblokowuje osobę.
 
 Bot wymaga uprawnienia Zarządzanie kanałami, a kanały ticketów muszą mieścić się w limitach Discorda. Transkrypt obejmuje maksymalnie 1000 ostatnich wiadomości z kanału i jest zapisywany w rekordzie ticketu; załączniki są odnośnikami do Discord CDN.
 
@@ -282,3 +282,14 @@ Przykład: `/przebuduj-serwer wariant:Gamingowy`. Cały układ może uruchomić 
 ### Karta poziomu
 
 `/level` oraz `/poziom` pokazują kartę z avatarem, nazwą serwerową, miejscem w rankingu, paskiem XP i liczbą XP do następnego poziomu. Opcja `uzytkownik` pozwala sprawdzić inną osobę. Postęp na pasku jest liczony od początku bieżącego poziomu, a suma XP pozostaje osobną wartością. Brak wpisu w rankingu oznaczamy kreską. Karta nie zmienia istniejących XP ani zasad naliczania.
+
+### Rozdzielenie komend dla administracji i graczy
+
+Komendy konfiguracji modułów, moderacji i obsługi rekrutacji są domyślnie widoczne tylko dla osób z **Zarządzanie serwerem** lub **Administrator**. Komendy `/kategoria-dodaj`, `/kanal-dodaj`, `/rola-dodaj` i `/wyczysc` zachowują własne wymagania zarządzania kanałami, rolami lub wiadomościami. Komendy całego układu serwera nadal wykonuje wyłącznie właściciel.
+
+- **Gracze:** ekonomia, `/zabawa`, `/pomysl`, `/level`, `/poziom`, `/ranking`, `/statystyki`, `/rekrutacja-status`, `/rekrutacja-moje`, `/rekrutacja-pomoc`.
+- **Własny ticket:** `/ticket historia`, `/ticket zamknij`, `/ticket transcript`, `/ticket ocena`. Kontrola właściciela zgłoszenia nadal obowiązuje.
+- **Administracja ticketów:** `/ticket-admin panel`, `konfiguracja`, `kategoria`, `lista`, `przejmij`, `przekaz`, `raport` i pozostałe operacje obsługi.
+- **Kreator wiadomości:** `/embed` jest domyślnie administracyjny.
+
+Bot nie nadaje ról ani nie zmienia ich uprawnień. Własne, już skonfigurowane role obsługi nadal są sprawdzane podczas wykonywania komend i interakcji. Jeżeli chcesz delegować komendę roli bez Zarządzania serwerem, jej widoczność ustawisz w Discordzie: Ustawienia serwera → Integracje → StrefaBot → wybrana komenda → Role i członkowie. Przy moderacji przypisz też dozwoloną rolę w panelu Moderacja; sama widoczność nie daje prawa wykonania. Indywidualne nadpisania Discorda mogą mieć pierwszeństwo przed domyślną widocznością.

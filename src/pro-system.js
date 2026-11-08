@@ -10,7 +10,7 @@ const shortId = () => `${Date.now().toString(36).slice(-5)}${Math.random().toStr
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
 const admin = () => new SlashCommandBuilder();
-export const proCommands = [
+const proDefinitions = [
   admin().setName('ticket').setDescription('Zarządzanie systemem ticketów.')
     .addSubcommand(s => s.setName('panel').setDescription('Publikuje konfigurowalny panel zgłoszeń.')
       .addStringOption(o => o.setName('tytul').setDescription('Tytuł panelu').setMaxLength(256))
@@ -126,7 +126,13 @@ export const proCommands = [
       .addChannelOption(o => o.setName('kanal').setDescription('Kanał docelowy').addChannelTypes(ChannelType.GuildText).setRequired(true))),
 ];
 
-export const isProCommand = name => name === 'ticket' || name === 'embed';
+const publicTicketActions=new Set(['zamknij','transcript','historia','ocena']);
+const ticketDefinition=proDefinitions[0].toJSON();
+const personalTicket={name:'ticket',toJSON:()=>({...structuredClone(ticketDefinition),description:'Twoje zgłoszenia: historia, zamknięcie, transkrypt i ocena.',dm_permission:false,default_member_permissions:null,options:structuredClone(ticketDefinition.options.filter(s=>publicTicketActions.has(s.name)))})};
+const adminTicket={name:'ticket-admin',toJSON:()=>({...structuredClone(ticketDefinition),name:'ticket-admin',description:'Administracja ticketów: panele, konfiguracja i obsługa.',dm_permission:false,default_member_permissions:String(PermissionFlagsBits.ManageGuild),options:structuredClone(ticketDefinition.options.filter(s=>!publicTicketActions.has(s.name)))})};
+proDefinitions[1].setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild).setDMPermission(false);
+export const proCommands=[personalTicket,adminTicket,proDefinitions[1]];
+export const isProCommand = name => ['ticket','ticket-admin','embed'].includes(name);
 
 function embedModal(customId, saved) {
   const modal = new ModalBuilder().setCustomId(customId).setTitle(saved ? 'Edytuj embed' : 'Kreator embeda');
@@ -395,7 +401,8 @@ export function createProSystem({ client, featureStore, cfg }) {
 
   async function command(interaction) {
     if (!interaction.inGuild()) return respond(interaction, 'Ta funkcja działa tylko na serwerze Discord.');
-    const top = interaction.commandName;
+    const top = interaction.commandName==='ticket-admin'?'ticket':interaction.commandName;
+    if(interaction.commandName==='ticket-admin'&&!manager(interaction))return respond(interaction,'Komendy administracyjne ticketów są przeznaczone dla administracji serwera.');
     const sub = interaction.options.getSubcommand();
     if (top === 'ticket') {
       await syncLegacyTickets(interaction.guild);
@@ -475,7 +482,7 @@ export function createProSystem({ client, featureStore, cfg }) {
       }
       if (sub === 'kategorie') {
         const categories = featureStore.snapshot().tickets.guildSettings?.[interaction.guildId]?.categories?.filter(item => item.active !== false) ?? [];
-        return respond(interaction, categories.length ? categories.slice(0,25).map(item => `**${item.emoji ?? '🎫'} ${item.name}** (${item.id}) · pytania: ${(item.questions ?? []).map(question => question.label).join(' / ')}`).join('\n') : 'Nie skonfigurowano kategorii. Dodaj ją poleceniem `/ticket kategoria`.');
+        return respond(interaction, categories.length ? categories.slice(0,25).map(item => `**${item.emoji ?? '🎫'} ${item.name}** (${item.id}) · pytania: ${(item.questions ?? []).map(question => question.label).join(' / ')}`).join('\n') : 'Nie skonfigurowano kategorii. Dodaj ją poleceniem `/ticket-admin kategoria`.');
       }
       if (sub === 'administrator') {
         if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) && !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) return respond(interaction, 'Tylko administrator serwera może zmieniać role administrujące ticketami.');
