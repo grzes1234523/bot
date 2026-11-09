@@ -45,5 +45,5 @@ export function manageableGuilds(guilds) {
     if (guild.owner === true) return true;
     try { return (BigInt(guild.permissions ?? '0') & (8n | 32n)) !== 0n; }
     catch { return false; }
-  }).map(guild => ({ id: guild.id, name: guild.name || 'Serwer Discord' }));
+  }).map(guild => ({ id: guild.id, name: guild.name || 'Serwer Discord', iconUrl: guild.icon && /^\d{17,20}$/.test(String(guild.id)) && /^[a-zA-Z0-9_]+$/.test(String(guild.icon)) ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png?size=128` : null }));
 }
