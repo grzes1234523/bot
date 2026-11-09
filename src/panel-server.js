@@ -148,7 +148,7 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         sessions.delete(current.id);
         sessions.set(newId, { createdAt: Date.now(), discordAccessToken: token.access_token, guildListUpdatedAt: Date.now(), user: { id: user.id, username: user.global_name || user.username }, guildId: selected?.id || PRIMARY_GUILD_ID, manageableGuilds, botGuildIds: [...botIds], canManage: Boolean(selected) });
         setSessionCookie(res, newId, PANEL_SESSION_SECRET, baseUrl);
-        res.writeHead(302, { Location: '/' });
+        res.writeHead(302, { Location: '/wybor-serwera' });
         return res.end();
       }
 
@@ -674,6 +674,12 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         return json(res, 404, { error: 'Nie znaleziono endpointu.' });
       }
 
+      if (req.method === 'GET' && route === '/wybor-serwera') {
+        const current = configReady ? parseSession(req, PANEL_SESSION_SECRET) : null;
+        if (!current?.value.user) { res.writeHead(302, { Location: '/auth/discord' }); return res.end(); }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+        return fs.createReadStream(path.join(PANEL_DIR, 'wybor-serwera.html')).pipe(res);
+      }
       if (req.method === 'GET' && route === '/aktualizacje') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
         return fs.createReadStream(path.join(PANEL_DIR, 'aktualizacje.html')).pipe(res);
