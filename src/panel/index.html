@@ -29,7 +29,35 @@
 #welcomeImageFile:focus-visible,#farewellImageFile:focus-visible{outline:2px solid #b79aff;outline-offset:3px}
 #ideasForm .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:20px}#ideasForm select{display:block;width:100%;padding:12px;margin-top:8px;background:#11131b;color:var(--text);border:1px solid var(--line);border-radius:9px;font:inherit}#module-zabawy input,#ideasForm input{accent-color:#8b5cf6}#ideasList p{white-space:pre-wrap;overflow-wrap:anywhere}#module-aktywnosc table{width:100%}@media(max-width:650px){#ideasForm .grid{grid-template-columns:1fr}}
 #logsForm select,#logsFilter{padding:12px;background:#11131b;color:var(--text);border:1px solid var(--line);border-radius:9px;font:inherit}#logsForm select{display:block;width:100%;margin-top:8px}#logsForm .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}#logsForm input{accent-color:#8b5cf6}#logsList p{white-space:pre-wrap;overflow-wrap:anywhere}@media(max-width:650px){#logsForm .grid{grid-template-columns:1fr}}
-</style></head>
+</style>
+<style id="neon-server-control-theme">
+/* Neonowy wyglad sekcji Serwer i kanaly — bez zmian logiki */
+#server-control{--neon:#9d5cff;--neon-blue:#3d86ff;position:relative;isolation:isolate;padding:32px;border:1px solid #6540b15c;border-radius:22px;background:radial-gradient(ellipse at 90% 0%,#6124a92e,transparent 42%),radial-gradient(ellipse at 10% 60%,#155ac42a,transparent 48%),linear-gradient(145deg,#11152c,#100e21 70%);box-shadow:0 0 45px #6e38e91c,inset 0 1px #ffffff15;color:#eeeaff}
+#server-control .control-eyebrow{color:#b99bff;letter-spacing:2px;font-weight:800}
+#server-control .control-title{color:#fff;font-size:clamp(27px,3.5vw,42px);text-shadow:0 0 24px #a05aff70}
+#server-control .control-subtitle,#server-control .muted{color:#b5b4d3}
+#server-control>.card,#server-control .server-box{background:linear-gradient(135deg,#1b1c3be8,#121a36e8);border:1px solid #8359e267;border-radius:18px;box-shadow:0 14px 35px #0004,0 0 25px #753aff13;padding:24px}
+#server-control>.card h2{color:#f5edff;font-size:23px}
+#server-control #guildCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px;margin-top:24px}
+#server-control #guildCards>*{min-width:0}
+#server-control #guildCards .card,#server-control #guildCards article{background:linear-gradient(145deg,#242047,#171b3c);border:1px solid #7450c66e;border-radius:16px;box-shadow:0 8px 26px #08071988;transition:transform .18s,box-shadow .18s}
+#server-control #guildCards .card:hover,#server-control #guildCards article:hover{transform:translateY(-3px);box-shadow:0 12px 34px #8a44ff35}
+#server-control .control-toolbar{margin:24px 0;gap:16px;flex-wrap:wrap}
+#server-control .server-picker{background:#201b42;border:1px solid #8d63e36e;border-radius:14px;color:#f5f0ff;box-shadow:0 0 20px #8b5cf61b}
+#server-control .control-online{color:#8fffc7}
+#server-control .button,#server-control button.button{border:1px solid #9b73fa85;background:linear-gradient(120deg,#743be0,#4c59d7);color:#fff;border-radius:10px;box-shadow:0 4px 18px #7240ed40;font-weight:700}
+#server-control .button.secondary,#server-control button.button.secondary{background:#272347;color:#e6dfff}
+#server-control .button:hover,#server-control button.button:hover{filter:brightness(1.16);box-shadow:0 6px 24px #8454ff69}
+#server-control .server-box-head{border-bottom:1px solid #8766c044;padding-bottom:18px}
+#server-control .channel-table-wrap{overflow-x:auto;border-radius:12px}
+#server-control .channel-table{width:100%;border-collapse:separate;border-spacing:0}
+#server-control .channel-table th{background:#322657;color:#dcd0ff}
+#server-control .channel-table td{background:#151a35;color:#e9e6ff;border-bottom:1px solid #ffffff12}
+#server-control .channel-table tr:hover td{background:#25244a}
+#server-control .server-note{color:#c5b7f7}
+@media(max-width:700px){#server-control{padding:20px 14px;border-radius:14px}#server-control>.card,#server-control .server-box{padding:16px}#server-control #guildCards{grid-template-columns:1fr}}
+</style>
+</head>
 <body>
   <section id="landing" class="landing-page hidden" aria-label="Strona główna Strefy Gry i Rozrywki">
     <div class="landing-art" role="img" aria-label="Neonowa grafika Strefa Gry i Rozrywki"></div>
