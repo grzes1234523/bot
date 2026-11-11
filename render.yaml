@@ -69,7 +69,7 @@ services:
     buildCommand: npm ci
     preDeployCommand: npm run db:migrate
     startCommand: npm run panel
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: commit
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
