@@ -333,38 +333,46 @@
     $('logout').addEventListener('click',async()=>{await fetch('/auth/logout',{method:'POST',credentials:'same-origin'});location.reload();});load();
   </script>
 <script id="command-center-script">
-(function(){
-const el=id=>document.getElementById(id);
-let currentGuilds=[];
-const safeIcon=url=>{try{const u=new URL(url);return u.protocol==='https:'&&['cdn.discordapp.com','media.discordapp.net'].includes(u.hostname)&&!u.username&&!u.password?u.href:null}catch{return null}};
-function draw(){
-const q=el('ccSearch').value.trim().toLocaleLowerCase('pl');
-const box=el('ccGuilds');box.replaceChildren();
-const visible=currentGuilds.filter(g=>g.name.toLocaleLowerCase('pl').includes(q));
-if(!visible.length){const p=document.createElement('p');p.textContent='Nie znaleziono serwerów.';box.append(p)}
-for(const g of visible){
-const article=document.createElement('article');article.className='cc-guild';
+(()=>{
+const $cc=id=>document.getElementById(id);
+let guilds=[];
+const safeIcon=value=>{try{const u=new URL(value);return u.protocol==='https:'&&['cdn.discordapp.com','media.discordapp.net'].includes(u.hostname)&&!u.username&&!u.password&&!u.port?u.href:null}catch{return null}};
+function render(){
+const box=$cc('ccGuilds'),query=$cc('ccSearch').value.trim().toLocaleLowerCase('pl');box.replaceChildren();
+const matches=guilds.filter(g=>g.name.toLocaleLowerCase('pl').includes(query));
+if(!matches.length){const p=document.createElement('p');p.textContent=guilds.length?'Nie znaleziono serwerów.':'Brak dostępnych serwerów.';box.append(p)}
+for(const g of matches){
+const card=document.createElement('article');card.className='cc-guild';
 const banner=document.createElement('div');banner.className='cc-banner';
-const icon=document.createElement('div');icon.className='cc-guild-icon';const img=safeIcon(g.iconUrl||g.icon);
-if(img){const im=document.createElement('img');im.src=img;im.alt='';icon.append(im)}else icon.textContent=g.name.trim().slice(0,2).toUpperCase();
-banner.append(icon);
+const icon=document.createElement('div');icon.className='cc-guild-icon';
+const url=safeIcon(g.iconUrl||g.icon);if(url){const img=document.createElement('img');img.src=url;img.alt='';icon.append(img)}else icon.textContent=g.name.slice(0,2).toUpperCase();banner.append(icon);
 const body=document.createElement('div');body.className='cc-guild-body';
-const h=document.createElement('h3');h.textContent=g.name;h.title=g.name;
+const name=document.createElement('h3');name.textContent=g.name;name.title=g.name;
 const role=document.createElement('div');role.className='cc-role';role.textContent=g.owner===true?'♛ Właściciel serwera':g.owner===false?'♢ Administrator serwera':'Serwer Discord';
 const button=document.createElement('button');button.type='button';button.textContent=g.installed?'⚙ Zarządzaj serwerem':'＋ Dodaj bota';
-button.addEventListener('click',()=>{const old=[...document.querySelectorAll('#guildCards [data-select-guild]')].find(x=>x.dataset.selectGuild===g.id);if(old){old.click();return;}location.hash='#server-control'});
-body.append(h,role,button);article.append(banner,body);box.append(article);
+button.addEventListener('click',async()=>{
+if(!g.installed){if(g.invite){try{const u=new URL(g.invite);if(u.protocol==='https:'&&u.hostname==='discord.com'&&u.pathname==='/oauth2/authorize'&&u.searchParams.get('guild_id')===g.id){location.assign(u.href);return}}catch{}}location.hash='#server-control';return}
+button.disabled=true;try{const response=await fetch('/api/guilds',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({guildId:g.id})});if(!response.ok)throw Error('Nie udało się wybrać serwera');location.hash='#server-control';location.reload()}catch(e){button.disabled=false;button.textContent=e.message}
+});
+body.append(name,role,button);card.append(banner,body);box.append(card);
 }
-el('ccServerCount').textContent=String(currentGuilds.length);
+$cc('ccServerCount').textContent=String(guilds.length);
 }
-el('ccSearch').addEventListener('input',draw);
-const originalFetch=window.fetch;
-window.fetch=function(...args){const promise=originalFetch.apply(this,args);const url=String(args[0]||'');
-if(url.startsWith('/api/guilds')&&!args[1]?.method){promise.then(r=>r.ok?r.clone().json():null).then(data=>{if(data&&Array.isArray(data.guilds)){currentGuilds=data.guilds.slice(0,20);draw()}}).catch(()=>{})}
-if(url==='/api/server-control'){promise.then(r=>r.ok?r.clone().json():null).then(data=>{if(!data)return;el('ccMembers').textContent=data.server&&Number.isFinite(Number(data.server.memberCount))?Number(data.server.memberCount).toLocaleString('pl-PL'):'—';const channels=el('ccChannels');channels.replaceChildren();for(const c of (data.channels||[]).slice(0,5)){const line=document.createElement('div');line.className='cc-channel';const name=document.createElement('span');name.textContent=(c.type==='tekstowy'?'# ':'🔊 ')+c.name;const status=document.createElement('span');status.textContent=c.canSend?'● Dostępny':'○ Brak dostępu';line.append(name,status);channels.append(line)}if(!(data.channels||[]).length)channels.textContent='Brak kanałów do wyświetlenia.'}).catch(()=>{})}
-if(url==='/api/session'){promise.then(r=>r.ok?r.clone().json():null).then(data=>{if(data)el('ccBotStatus').textContent=(data.discordReady??data.botReady)?'● Online':'○ Offline'}).catch(()=>{})}
-return promise};
-el('ccTickets').textContent='—';
+async function refresh(){
+try{
+const sessionResponse=await fetch('/api/session',{credentials:'same-origin'});
+if(!sessionResponse.ok)return;
+const session=await sessionResponse.json();
+$cc('ccBotStatus').textContent=(session.discordReady??session.botReady)?'● Online':'○ Offline';
+const response=await fetch('/api/guilds',{credentials:'same-origin',cache:'no-store'});
+if(!response.ok)throw Error('Nie udało się pobrać serwerów');
+const data=await response.json();guilds=Array.isArray(data.guilds)?data.guilds.filter(g=>g&&typeof g.name==='string'&&/^\d{17,20}$/.test(String(g.id))).slice(0,20):[];render();
+try{const res=await fetch('/api/server-control',{credentials:'same-origin'});if(res.ok){const info=await res.json();$cc('ccMembers').textContent=Number(info.server?.memberCount||0).toLocaleString('pl-PL');const channels=$cc('ccChannels');channels.replaceChildren();for(const ch of (info.channels||[]).slice(0,5)){const line=document.createElement('div');line.className='cc-channel';const n=document.createElement('span');n.textContent=(ch.type==='tekstowy'?'# ':'🔊 ')+ch.name;const st=document.createElement('span');st.textContent=ch.canSend?'● Dostępny':'○ Brak dostępu';line.append(n,st);channels.append(line)}if(!(info.channels||[]).length)channels.textContent='Brak kanałów.'}}}catch{}
+}catch(e){$cc('ccGuilds').textContent=e.message}
+}
+$cc('ccSearch').addEventListener('input',render);
+window.addEventListener('hashchange',()=>{if(location.hash==='#server-dashboard')void refresh()});
+void refresh();
 })();
 </script>
 </body></html>
