@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchUserGuilds, fetchBotGuildIds, manageableGuilds } from '../src/guild-discovery.js';
+import { fetchUserGuilds, fetchBotGuildIds, chooseHomeGuild, manageableGuilds } from '../src/guild-discovery.js';
 
 const rows = (start,count) => Array.from({ length: count }, (_,index) => ({ id: String(10000000000000000n + BigInt(start + index)), name: `Serwer ${start+index}`, permissions: '32' }));
 test('lista konta pobiera wszystkie strony i przekazuje token wyłącznie w nagłówku', async () => {
@@ -16,6 +16,18 @@ test('lista bota pobiera serwery poza pierwszymi 200 zamiast polegać na cache p
   const first=rows(0,200),second=rows(200,1),calls=[];
   const client={guilds:{cache:new Map(),fetch:async options=>{calls.push(options);return new Map((calls.length===1?first:second).map(g=>[g.id,g]));}}};
   const ids=await fetchBotGuildIds(client,'rest');assert.equal(ids.size,201);assert.equal(calls[1].after,first.at(-1).id);
+});
+test('centrum po logowaniu bierze skonfigurowany serwer, potem pierwszy z botem', () => {
+  const primary = '123456789012345679';
+  const first = '123456789012345680';
+  const second = '123456789012345681';
+  const guilds = [{ id: first, name: 'Inny' }, { id: primary, name: 'Strefa Gry i Rozrywki' }, { id: second, name: 'Drugi' }];
+  const all = new Set([first, primary, second]);
+  assert.equal(chooseHomeGuild(guilds, all, primary).id, primary);
+  assert.equal(chooseHomeGuild(guilds, new Set([first, second]), primary).id, first);
+  assert.equal(chooseHomeGuild(guilds, new Set([second]), primary).id, second);
+  assert.equal(chooseHomeGuild(guilds, new Set(), primary), null);
+  assert.equal(chooseHomeGuild(null, all, primary), null);
 });
 test('właściciel oraz administrator i zarządzający widzą swoje serwery', () => {
   const result=manageableGuilds([{id:'owner',owner:true,permissions:'0'},{id:'admin',permissions:'8'},{id:'manager',permissions:'32'},{id:'guest',permissions:'0'},{id:'broken',permissions:'xyz'}]);

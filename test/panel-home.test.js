@@ -57,6 +57,9 @@ test('z centrum dowodzenia da się dojść do istniejących modułów i listy ka
   assert.match(control, /href="#module-logi">Otwórz logi/);
   assert.match(control, /id="serverChannelRows"/);
   assert.match(control, /id="guildCards"/);
+  assert.match(control, /id="ccPicker"/);
+  assert.match(control, /id="ccGuildLabel"/);
+  assert.match(control, /id="ccSwitchServer" href="\/wybor-serwera"[^>]*>Zmień serwer/);
   assert.match(html, /location\.hash='#server-control';location\.reload\(\)/);
 });
 
@@ -150,4 +153,41 @@ test('przycisk Zarządzaj serwerem zostawia użytkownika na centrum dowodzenia',
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.ok(requests.slice(before).some(([url]) => url.startsWith('/api/guilds')));
   assert.equal(location.hash, '#server-dashboard');
+});
+
+test('wybrany serwer otwiera centrum i zostawia wybór pod /wybor-serwera', async () => {
+  const script = html.slice(html.indexOf('<script id="command-center-script">') + '<script id="command-center-script">'.length, html.lastIndexOf('</script>'));
+  const make = tag => ({
+    tag, hidden: false, textContent: '', value: '', children: [], listeners: {},
+    addEventListener(name, fn) { (this.listeners[name] ??= []).push(fn); },
+    replaceChildren(...nodes) { this.children = [...nodes]; },
+    append(...nodes) { this.children.push(...nodes); },
+    setAttribute() {},
+  });
+  const byId = {
+    ccSearch: make('input'), ccGuilds: make('div'), ccBotStatus: make('strong'), ccMembers: make('strong'),
+    ccChannels: make('div'), ccServerCount: make('strong'), ccPicker: make('div'), ccSwitchServer: make('a'), ccGuildLabel: make('p'),
+  };
+  byId.ccSwitchServer.hidden = true;
+  const guildId = '123456789012345679';
+  const fetch = async url => {
+    if (String(url).startsWith('/api/session')) return Response.json({ canManage: true, guildId, guildName: 'Strefa Gry i Rozrywki', discordReady: true, botReady: true });
+    if (String(url).startsWith('/api/guilds')) return Response.json({ guilds: [
+      { id: '123456789012345680', name: 'Inny', installed: true },
+      { id: guildId, name: 'Strefa Gry i Rozrywki', installed: true, owner: true },
+    ]});
+    if (String(url) === '/api/server-control') return Response.json({ server: { memberCount: 1280, name: 'Strefa Gry i Rozrywki' }, channels: [] });
+    return Response.json({}, { status: 404 });
+  };
+  vm.runInNewContext(script, {
+    document: { getElementById: id => byId[id] || null, createElement: make, querySelector: () => null },
+    location: { hash: '#server-control' },
+    window: { fetch, addEventListener() {}, scrollTo() {} },
+    fetch, setTimeout, clearTimeout, URL, console, requestAnimationFrame: fn => fn(),
+  });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(byId.ccPicker.hidden, true);
+  assert.equal(byId.ccSwitchServer.hidden, false);
+  assert.equal(byId.ccGuildLabel.textContent, 'Strefa Gry i Rozrywki');
+  assert.match(html, /href="\/wybor-serwera"/);
 });

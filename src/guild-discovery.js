@@ -40,6 +40,12 @@ export async function fetchBotGuildIds(client, discordMode) {
   throw new Error('Nie można odczytać pełnej listy serwerów bota.');
 }
 
+export function chooseHomeGuild(guilds, botIds, primaryGuildId) {
+  const list = Array.isArray(guilds) ? guilds : [];
+  const present = guild => botIds?.has?.(guild?.id);
+  return list.find(guild => guild?.id === primaryGuildId && present(guild)) ?? list.find(present) ?? null;
+}
+
 export function manageableGuilds(guilds) {
   return guilds.filter(guild => {
     if (guild.owner === true) return true;
