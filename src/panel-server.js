@@ -12,7 +12,7 @@ import { logSettings, logEvents, saveLogSettings } from './log-settings.js';
 import { readServerStatistics } from './server-statistics.js';
 import { guildStore, botInvite } from './guild-store.js';
 import { millionaireSummary } from './millionaires.js';
-import { fetchUserGuilds, fetchBotGuildIds, manageableGuilds as selectManageableGuilds } from './guild-discovery.js';
+import { fetchUserGuilds, fetchBotGuildIds, chooseHomeGuild, manageableGuilds as selectManageableGuilds } from './guild-discovery.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -140,7 +140,7 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         const user = await userResponse.json();
         const manageableGuilds = selectManageableGuilds(guilds);
         const botIds = await fetchBotGuildIds(client, discordMode);
-        const selected = manageableGuilds.find(item => item.id === PRIMARY_GUILD_ID && botIds.has(item.id)) ?? manageableGuilds.find(item => botIds.has(item.id));
+        const selected = chooseHomeGuild(manageableGuilds, botIds, PRIMARY_GUILD_ID);
         if (selected && !client.guilds.cache.has(selected.id) && client.guilds.fetch) await client.guilds.fetch(selected.id);
         const selectedGuild = selected ? client.guilds.cache.get(selected.id) : null;
         if (selectedGuild?.channels?.fetch && selectedGuild?.roles?.fetch) await Promise.all([selectedGuild.channels.fetch(), selectedGuild.roles.fetch()]);

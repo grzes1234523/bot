@@ -443,6 +443,52 @@ test('logowanie Discord prowadzi do centrum dowodzenia pod #server-control', asy
   } finally { mockedFetch.mock.restore(); }
 });
 
+test('logowanie wchodzi w skonfigurowany serwer, a bez bota w pierwszy dostępny', async t => {
+  const first = '123456789012345680';
+  const second = '123456789012345681';
+  const guilds = [
+    { id: first, name: 'Inny', permissions: '32' },
+    { id: guildId, name: 'Strefa Gry i Rozrywki', permissions: '32' },
+    { id: second, name: 'Drugi', permissions: '32' },
+  ];
+  const preferred = await fixture(t, { mode: 'rest', oauthGuilds: guilds });
+  preferred.client.guilds.cache.set(first, { name: 'Inny', iconURL: () => null });
+  preferred.client.guilds.cache.set(second, { name: 'Drugi', iconURL: () => null });
+  let cookie = await preferred.authenticate();
+  let session = await (await preferred.request('/api/session', cookie)).json();
+  assert.equal(session.canManage, true);
+  assert.equal(session.guildId, guildId);
+
+  const fallback = await fixture(t, { mode: 'rest', oauthGuilds: guilds, guildPresent: false });
+  fallback.client.guilds.cache.set(first, { name: 'Inny', iconURL: () => null });
+  fallback.client.guilds.cache.set(second, { name: 'Drugi', iconURL: () => null });
+  cookie = await fallback.authenticate();
+  session = await (await fallback.request('/api/session', cookie)).json();
+  assert.equal(session.guildId, first);
+
+  const none = await fixture(t, { mode: 'rest', oauthGuilds: [{ id: first, name: 'Inny', permissions: '32' }], guildPresent: false });
+  const start = await none.request('/auth/discord');
+  const state = new URL(start.headers.get('location')).searchParams.get('state');
+  const loginCookie = start.headers.get('set-cookie').split(';')[0];
+  const mockedFetch = t.mock.method(globalThis, 'fetch', async url => {
+    if (url === 'https://discord.com/api/v10/oauth2/token') return Response.json({ access_token: 'test-access-token' });
+    if (url === 'https://discord.com/api/v10/users/@me') return Response.json({ id: '123456789012345682', username: 'tester' });
+    if (String(url).startsWith('https://discord.com/api/v10/users/@me/guilds')) return Response.json([{ id: first, name: 'Inny', permissions: '32' }]);
+    throw new Error(`Niedozwolone połączenie w teście: ${url}`);
+  });
+  try {
+    const callback = await none.request(`/auth/discord/callback?code=test-code&state=${encodeURIComponent(state)}`, loginCookie);
+    assert.equal(callback.headers.get('location'), '/#server-control');
+    cookie = callback.headers.get('set-cookie').split(';')[0];
+  } finally { mockedFetch.mock.restore(); }
+  session = await (await none.request('/api/session', cookie)).json();
+  assert.equal(session.canManage, false);
+  assert.equal((await none.request('/wybor-serwera', cookie)).status, 200);
+  assert.match(await (await none.request('/wybor-serwera', cookie)).text(), /Twoje serwery/);
+  assert.equal((await none.request('/wybor-serwera')).status, 302);
+  assert.equal((await none.request('/wybor-serwera')).headers.get('location'), '/auth/discord');
+});
+
 test('Odśwież serwery pobiera nowo dodany serwer bez ponownego logowania i nie ujawnia tokenu', async t => {
   const guilds = [{ id: guildId, name: 'Stary', permissions: '32' }];
   const panel = await fixture(t, { mode: 'rest', oauthGuilds: guilds });
