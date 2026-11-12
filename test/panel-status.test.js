@@ -424,6 +424,25 @@ test('wybór serwera izoluje ekonomię, tickety i rekrutację oraz blokuje obce 
 });
 
 
+test('logowanie Discord prowadzi do centrum dowodzenia pod #server-control', async t => {
+  const panel = await fixture(t, { mode: 'rest' });
+  const start = await panel.request('/auth/discord');
+  assert.equal(start.status, 302);
+  const state = new URL(start.headers.get('location')).searchParams.get('state');
+  const cookie = start.headers.get('set-cookie').split(';')[0];
+  const mockedFetch = t.mock.method(globalThis, 'fetch', async url => {
+    if (url === 'https://discord.com/api/v10/oauth2/token') return Response.json({ access_token: 'test-access-token' });
+    if (url === 'https://discord.com/api/v10/users/@me') return Response.json({ id: '123456789012345682', username: 'tester' });
+    if (String(url).startsWith('https://discord.com/api/v10/users/@me/guilds')) return Response.json([{ id: guildId, name: 'Strefa', permissions: '32' }]);
+    throw new Error(`Niedozwolone połączenie w teście: ${url}`);
+  });
+  try {
+    const response = await panel.request(`/auth/discord/callback?code=test-code&state=${encodeURIComponent(state)}`, cookie);
+    assert.equal(response.status, 302);
+    assert.equal(response.headers.get('location'), '/#server-control');
+  } finally { mockedFetch.mock.restore(); }
+});
+
 test('Odśwież serwery pobiera nowo dodany serwer bez ponownego logowania i nie ujawnia tokenu', async t => {
   const guilds = [{ id: guildId, name: 'Stary', permissions: '32' }];
   const panel = await fixture(t, { mode: 'rest', oauthGuilds: guilds });

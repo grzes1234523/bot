@@ -58,46 +58,50 @@
 @media(max-width:700px){#server-control{padding:20px 14px;border-radius:14px}#server-control>.card,#server-control .server-box{padding:16px}#server-control #guildCards{grid-template-columns:1fr}}
 </style>
 <style id="command-center-style">
-#server-dashboard .cc-legacy{display:none}
-#server-dashboard{background:radial-gradient(ellipse at 80% 0%,#5612a847,transparent 42%),linear-gradient(135deg,#0d0d22,#100c23);border:1px solid #7044c055;border-radius:18px;padding:clamp(14px,2vw,28px)}
-#server-dashboard .command-center{color:#f8f4ff}
-#server-dashboard .cc-top{display:flex;align-items:center;justify-content:space-between;gap:16px}
-#server-dashboard .cc-top h1{font-size:clamp(26px,3vw,43px);line-height:1.15;margin:0;color:#fff}
-#server-dashboard .cc-top em{font-style:normal;color:#d052fa}
-#server-dashboard .cc-top p{color:#c7bfe3;margin:10px 0 22px}
-#server-dashboard .cc-top-mark{font-size:38px;color:#aa68ff;text-shadow:0 0 25px #ac42ff}
-#server-dashboard .cc-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
-#server-dashboard .cc-stat{display:flex;align-items:center;gap:14px;min-height:96px;padding:18px;border:1px solid #b94aff;border-radius:17px;background:linear-gradient(145deg,#22113c,#15112f);box-shadow:0 0 17px #9b36ff38}
-#server-dashboard .cc-stat:nth-child(even){border-color:#24b9ff;box-shadow:0 0 17px #168aff2e}
-#server-dashboard .cc-stat>span{font-size:29px}
-#server-dashboard .cc-stat div{color:#d6d1e7;font-size:14px}
-#server-dashboard .cc-stat strong{display:block;font-size:25px;color:white;margin-top:4px}
-#server-dashboard .cc-search{display:flex;align-items:center;gap:14px;border:1px solid #b54cff;background:#17132c;border-radius:15px;padding:12px 20px;margin-bottom:20px}
-#server-dashboard .cc-search span{font-size:28px;color:#bf72ff}
-#server-dashboard .cc-search input{background:transparent;border:0;outline:0;color:#fff;width:100%;font:inherit}
-#server-dashboard .cc-guilds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
-#server-dashboard .cc-guild{min-width:0;overflow:hidden;border:2px solid #a349f5;border-radius:22px;background:linear-gradient(#191234,#100e24);box-shadow:0 0 20px #9835ff4d}
-#server-dashboard .cc-guild:nth-child(3n+2){border-color:#e046d7}
-#server-dashboard .cc-guild:nth-child(3n){border-color:#34b9ff}
-#server-dashboard .cc-banner{height:118px;background:radial-gradient(circle at 50% 0%,#b540f8,#262058 60%,#090d28);position:relative}
-#server-dashboard .cc-guild:nth-child(3n+2) .cc-banner{background:radial-gradient(circle at 50% 0%,#ed6538,#591324 65%,#170c1e)}
-#server-dashboard .cc-guild:nth-child(3n) .cc-banner{background:radial-gradient(circle at 50% 0%,#24c2fa,#132b6a 65%,#090d28)}
-#server-dashboard .cc-guild-icon{position:absolute;left:50%;bottom:-32px;transform:translateX(-50%);width:76px;height:76px;border:3px solid #b866ff;border-radius:50%;background:#272245;display:grid;place-items:center;font-size:30px;font-weight:800;overflow:hidden;box-shadow:0 0 16px #a14aff}
-#server-dashboard .cc-guild-icon img{width:100%;height:100%;object-fit:cover}
-#server-dashboard .cc-guild-body{text-align:center;padding:40px 14px 16px}
-#server-dashboard .cc-guild h3{font-size:18px;color:#fff;margin:4px 0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#server-dashboard .cc-role{display:inline-block;padding:6px 12px;border-radius:20px;background:#41216d;color:#e8d2ff;font-size:12px;margin-bottom:15px}
-#server-dashboard .cc-guild button{width:100%;background:linear-gradient(120deg,#a62df9,#6c21db);border:1px solid #ce73ff;border-radius:10px;padding:12px;color:white;font-weight:800;cursor:pointer}
-#server-dashboard .cc-guild button:hover{filter:brightness(1.2)}
-#server-dashboard .cc-bottom{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-top:24px}
-#server-dashboard .cc-panel{padding:20px;border:1px solid #a149f0;border-radius:17px;background:#15122c}
-#server-dashboard .cc-panel:nth-child(2){border-color:#3b9eff}
-#server-dashboard .cc-panel h2{font-size:19px;color:#fff;margin:0 0 16px}
-#server-dashboard .cc-panel p,#server-dashboard .cc-panel div{color:#c8c3dc}
-#server-dashboard .cc-panel a{display:inline-block;margin-top:15px;color:#c594ff}
-#server-dashboard .cc-channel{display:flex;justify-content:space-between;padding:9px;border-bottom:1px solid #ffffff16;gap:12px}
-@media(max-width:1100px){#server-dashboard .cc-stats{grid-template-columns:repeat(2,1fr)}#server-dashboard .cc-guilds{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:650px){#server-dashboard .cc-guilds,#server-dashboard .cc-bottom,#server-dashboard .cc-stats{grid-template-columns:1fr}#server-dashboard .cc-top-mark{display:none}}
+#server-dashboard .cc-legacy{display:none!important}
+#server-control{background:radial-gradient(ellipse at 80% 0%,#5612a847,transparent 42%),linear-gradient(135deg,#0d0d22,#100c23);border:1px solid #7044c055;border-radius:18px;padding:clamp(14px,2vw,28px)}
+#server-control .command-center{color:#f8f4ff}
+#server-control .cc-top{display:flex;align-items:center;justify-content:space-between;gap:16px}
+#server-control .cc-top h1{font-size:clamp(26px,3vw,43px);line-height:1.15;margin:0;color:#fff}
+#server-control .cc-top em{font-style:normal;color:#d052fa}
+#server-control .cc-top p{color:#c7bfe3;margin:10px 0 22px}
+#server-control .cc-top-mark{font-size:38px;color:#aa68ff;text-shadow:0 0 25px #ac42ff}
+#server-control .cc-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:20px}
+#server-control .cc-stat{display:flex;align-items:center;gap:14px;min-height:96px;padding:18px;border:1px solid #b94aff;border-radius:17px;background:linear-gradient(145deg,#22113c,#15112f);box-shadow:0 0 17px #9b36ff38}
+#server-control .cc-stat:nth-child(even){border-color:#24b9ff;box-shadow:0 0 17px #168aff2e}
+#server-control .cc-stat>span{font-size:29px}
+#server-control .cc-stat div{color:#d6d1e7;font-size:14px}
+#server-control .cc-stat strong{display:block;font-size:25px;color:white;margin-top:4px}
+#server-control .cc-search{display:flex;align-items:center;gap:14px;border:1px solid #b54cff;background:#17132c;border-radius:15px;padding:12px 20px;margin-bottom:20px}
+#server-control .cc-search span{font-size:28px;color:#bf72ff}
+#server-control .cc-search input{background:transparent;border:0;outline:0;color:#fff;width:100%;font:inherit}
+#server-control .cc-guilds{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+#server-control .cc-guild{min-width:0;overflow:hidden;border:2px solid #a349f5;border-radius:22px;background:linear-gradient(#191234,#100e24);box-shadow:0 0 20px #9835ff4d}
+#server-control .cc-guild:nth-child(3n+2){border-color:#e046d7}
+#server-control .cc-guild:nth-child(3n){border-color:#34b9ff}
+#server-control .cc-banner{height:118px;background:radial-gradient(circle at 50% 0%,#b540f8,#262058 60%,#090d28);position:relative}
+#server-control .cc-guild:nth-child(3n+2) .cc-banner{background:radial-gradient(circle at 50% 0%,#ed6538,#591324 65%,#170c1e)}
+#server-control .cc-guild:nth-child(3n) .cc-banner{background:radial-gradient(circle at 50% 0%,#24c2fa,#132b6a 65%,#090d28)}
+#server-control .cc-guild-icon{position:absolute;left:50%;bottom:-32px;transform:translateX(-50%);width:76px;height:76px;border:3px solid #b866ff;border-radius:50%;background:#272245;display:grid;place-items:center;font-size:30px;font-weight:800;overflow:hidden;box-shadow:0 0 16px #a14aff}
+#server-control .cc-guild-icon img{width:100%;height:100%;object-fit:cover}
+#server-control .cc-guild-body{text-align:center;padding:40px 14px 16px}
+#server-control .cc-guild h3{font-size:18px;color:#fff;margin:4px 0 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#server-control .cc-role{display:inline-block;padding:6px 12px;border-radius:20px;background:#41216d;color:#e8d2ff;font-size:12px;margin-bottom:15px}
+#server-control .cc-guild button{width:100%;background:linear-gradient(120deg,#a62df9,#6c21db);border:1px solid #ce73ff;border-radius:10px;padding:12px;color:white;font-weight:800;cursor:pointer}
+#server-control .cc-guild button:hover{filter:brightness(1.2)}
+#server-control .cc-bottom{display:grid;grid-template-columns:1.4fr 1fr;gap:18px;margin-top:24px}
+#server-control .cc-panel{padding:20px;border:1px solid #a149f0;border-radius:17px;background:#15122c}
+#server-control .cc-panel:nth-child(2){border-color:#3b9eff}
+#server-control .cc-panel h2{font-size:19px;color:#fff;margin:0 0 16px}
+#server-control .cc-panel p,#server-control .cc-panel div{color:#c8c3dc}
+#server-control .cc-panel a{display:inline-block;margin-top:15px;color:#c594ff}
+#server-control .cc-channel{display:flex;justify-content:space-between;padding:9px;border-bottom:1px solid #ffffff16;gap:12px}
+@media(max-width:1100px){#server-control .cc-stats{grid-template-columns:repeat(2,1fr)}#server-control .cc-guilds{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){#server-control .cc-guilds,#server-control .cc-bottom,#server-control .cc-stats{grid-template-columns:1fr}#server-control .cc-top-mark{display:none}}
+
+#server-dashboard:target{display:none!important}
+body:has(#server-dashboard:target) #server-control,body:has(#serverChannelRows:target) #server-control{display:block!important}
+#server-control>.command-center~.control-eyebrow{margin-top:28px}
 </style>
 </head>
 <body>
@@ -152,14 +156,14 @@
       <h2>Powiadomienia o awansie</h2><label>Kategoria Discord<select id="levelCategory"><option value="">Wybierz kategorię…</option></select></label><p class="muted">W wybranej kategorii powstanie kanał #poziomy, automatycznie ustawiony do powiadomień. Przycisk zapisuje tylko kanał; pozostałe ustawienia zapisz poniżej.</p><button type="button" id="createLevelChannel" class="button secondary">+ Utwórz kanał w kategorii</button><p id="levelChannelNotice" class="muted" role="status"></p><label>Kanał na nowe poziomy<select id="levelAnnouncementChannel"><option value="">Bez powiadomień</option></select></label><p class="muted">Po zdobyciu poziomu bot wyśle tutaj gratulacje. Przykład: 🎉 Użytkownik zdobywa poziom 2!</p><h2>Role za poziomy</h2><p class="muted">Role przyznawane są przy kolejnej nagrodzie XP po osiągnięciu progu. Bot potrzebuje uprawnienia Zarządzanie rolami.</p><div id="levelRewards"></div><button type="button" id="addLevelReward" class="button secondary">+ Dodaj nagrodę</button><div class="row" style="margin-top:20px"><button type="submit" class="button">Zapisz zmiany</button><button type="button" id="refreshLevels" class="button secondary">Odśwież ranking</button><span id="levelNotice" role="status" class="muted"></span></div></form>
       <div class="card"><h2>🏆 Ranking serwera</h2><p class="muted">Pierwsze 100 osób · poziom 1: 100 XP · poziom 2: 400 XP · poziom 3: 900 XP.</p><div style="overflow:auto"><table><thead><tr><th>Miejsce</th><th>Użytkownik</th><th>Poziom</th><th>XP</th><th>Wiadomości z XP</th><th>Minuty głosowe</th></tr></thead><tbody id="levelRanking"><tr><td colspan="6">Ładowanie…</td></tr></tbody></table></div></div>
     </section>
-    <section id="server-dashboard" class="module-card control-page"><div class="command-center" aria-label="Twoje centrum dowodzenia">
+    <section id="server-dashboard" class="module-card control-page"><div class="cc-legacy"><div class="control-eyebrow">SERWERY</div><h1 class="control-title">Centrum serwera</h1><p class="control-subtitle">Podgląd połączenia bota i kanałów dostępnych na Twoim serwerze.</p><div class="control-toolbar"><div class="server-picker"><span>🎮</span><strong id="dashboardServerName">Ładowanie serwera…</strong><span style="margin-left:auto;color:#9198aa">⌄</span></div><div class="control-actions"><span class="control-online">Bot połączony</span><button id="dashboardRefresh" class="button secondary">⟳ Odśwież z Discorda</button><a class="button" href="#server-control">Otwórz serwery →</a></div></div><div class="control-stats"><div class="control-stat"><strong id="dashboardServerCount">—</strong><span>Serwery połączone</span></div><div class="control-stat"><strong id="dashboardChannelCount">—</strong><span>Kanały serwera</span></div><div class="control-stat"><strong id="dashboardReadyCount">—</strong><span>Kanały dostępne botowi</span></div><div class="control-stat"><strong id="dashboardAttentionCount">—</strong><span>Kanały wymagające dostępu</span></div></div><div class="server-box"><div class="server-box-head"><div class="server-identity" id="dashboardServerIdentity"></div><div class="server-box-actions"><a class="button secondary" href="#module-auto-kanaly">⚙ Konfiguruj kanały</a><button id="dashboardExport" class="button secondary">⇩ Eksportuj dane</button></div></div><p class="muted">Widok pokazuje kanały serwera skonfigurowanego dla StrefaBot. Wybierz kanał, aby sprawdzić jego dostępność dla bota.</p><div id="dashboardNotice" class="server-note" role="status"></div></div></div></section>
+<section id="server-control" class="module-card control-page"><div class="command-center" aria-label="Twoje centrum dowodzenia">
 <div class="cc-top"><div><h1>Twoje centrum <em>dowodzenia</em></h1><p>Zarządzaj serwerami i botem w jednym miejscu</p></div><span class="cc-top-mark" aria-hidden="true">♛ 🎮</span></div>
 <div class="cc-stats"><div class="cc-stat"><span>🎮</span><div>Serwery<strong id="ccServerCount">—</strong></div></div><div class="cc-stat"><span>👥</span><div>Użytkownicy<strong id="ccMembers">—</strong></div></div><div class="cc-stat"><span>🎟️</span><div>Otwarte tickety<strong id="ccTickets">—</strong></div></div><div class="cc-stat"><span>🤖</span><div>Status bota<strong id="ccBotStatus">Sprawdzanie…</strong></div></div></div>
 <label class="cc-search"><span>⌕</span><input id="ccSearch" type="search" placeholder="Szukaj serwera…" autocomplete="off" aria-label="Szukaj serwera"></label>
 <div id="ccGuilds" class="cc-guilds"><p>Ładowanie Twoich serwerów…</p></div>
 <div class="cc-bottom"><section class="cc-panel"><h2>▥ Aktywność kanałów</h2><div id="ccChannels">Wybierz serwer, aby zobaczyć jego kanały.</div><a href="#server-control">Zobacz wszystkie kanały →</a></section><section class="cc-panel"><h2>◷ Ostatnie zdarzenia</h2><p>Otwórz logi serwera, aby zobaczyć aktualne zdarzenia.</p><a href="#module-logi">Otwórz logi →</a></section></div>
-</div><div class="cc-legacy"><div class="control-eyebrow">SERWERY</div><h1 class="control-title">Centrum serwera</h1><p class="control-subtitle">Podgląd połączenia bota i kanałów dostępnych na Twoim serwerze.</p><div class="control-toolbar"><div class="server-picker"><span>🎮</span><strong id="dashboardServerName">Ładowanie serwera…</strong><span style="margin-left:auto;color:#9198aa">⌄</span></div><div class="control-actions"><span class="control-online">Bot połączony</span><button id="dashboardRefresh" class="button secondary">⟳ Odśwież z Discorda</button><a class="button" href="#server-control">Otwórz serwery →</a></div></div><div class="control-stats"><div class="control-stat"><strong id="dashboardServerCount">—</strong><span>Serwery połączone</span></div><div class="control-stat"><strong id="dashboardChannelCount">—</strong><span>Kanały serwera</span></div><div class="control-stat"><strong id="dashboardReadyCount">—</strong><span>Kanały dostępne botowi</span></div><div class="control-stat"><strong id="dashboardAttentionCount">—</strong><span>Kanały wymagające dostępu</span></div></div><div class="server-box"><div class="server-box-head"><div class="server-identity" id="dashboardServerIdentity"></div><div class="server-box-actions"><a class="button secondary" href="#module-auto-kanaly">⚙ Konfiguruj kanały</a><button id="dashboardExport" class="button secondary">⇩ Eksportuj dane</button></div></div><p class="muted">Widok pokazuje kanały serwera skonfigurowanego dla StrefaBot. Wybierz kanał, aby sprawdzić jego dostępność dla bota.</p><div id="dashboardNotice" class="server-note" role="status"></div></div></div></section>
-<section id="server-control" class="module-card control-page"><div class="control-eyebrow">SERWERY / KANAŁY</div><h1 class="control-title">Serwer i kanały</h1><p class="control-subtitle">Sprawdź dostęp bota, kategorie i ustawienia kanałów tekstowych oraz głosowych.</p><div class="card"><h2>Twoje serwery</h2><p class="muted">Wybierz serwer, którym zarządzasz. Lista aktualizuje się po powrocie do karty panelu.</p><div id="guildCards" class="grid"><p class="muted">Wczytywanie serwerów…</p></div></div><div class="control-toolbar"><div class="server-picker"><span>🎮</span><strong id="controlServerName">Ładowanie…</strong></div><div class="control-actions"><span class="control-online">Połączono z Discordem</span><button id="controlRefresh" class="button secondary">⟳ Odśwież z Discorda</button><button id="controlExport" class="button secondary">⇩ Eksportuj</button></div></div><div class="server-box"><div class="server-box-head"><div class="server-identity" id="controlServerIdentity"></div><div class="server-box-actions"><a class="button" href="#module-auto-kanaly">＋ Konfiguruj kanały</a></div></div><div class="channel-table-wrap"><table class="channel-table"><thead><tr><th>Nazwa kanału</th><th>Status bota</th><th>Typ</th><th>Slowmode</th></tr></thead><tbody id="serverChannelRows"><tr><td colspan="4">Pobieranie kanałów…</td></tr></tbody></table></div></div><div id="controlNotice" class="server-note" role="status"></div></section>
+</div><div class="control-eyebrow">SERWERY / KANAŁY</div><h1 class="control-title">Serwer i kanały</h1><p class="control-subtitle">Sprawdź dostęp bota, kategorie i ustawienia kanałów tekstowych oraz głosowych.</p><div class="card"><h2>Twoje serwery</h2><p class="muted">Wybierz serwer, którym zarządzasz. Lista aktualizuje się po powrocie do karty panelu.</p><div id="guildCards" class="grid"><p class="muted">Wczytywanie serwerów…</p></div></div><div class="control-toolbar"><div class="server-picker"><span>🎮</span><strong id="controlServerName">Ładowanie…</strong></div><div class="control-actions"><span class="control-online">Połączono z Discordem</span><button id="controlRefresh" class="button secondary">⟳ Odśwież z Discorda</button><button id="controlExport" class="button secondary">⇩ Eksportuj</button></div></div><div class="server-box"><div class="server-box-head"><div class="server-identity" id="controlServerIdentity"></div><div class="server-box-actions"><a class="button" href="#module-auto-kanaly">＋ Konfiguruj kanały</a></div></div><div class="channel-table-wrap"><table class="channel-table"><thead><tr><th>Nazwa kanału</th><th>Status bota</th><th>Typ</th><th>Slowmode</th></tr></thead><tbody id="serverChannelRows"><tr><td colspan="4">Pobieranie kanałów…</td></tr></tbody></table></div></div><div id="controlNotice" class="server-note" role="status"></div></section>
     <section id="loginBox" class="card hidden"><h2>Połącz konto Discord</h2><p class="muted">Logowanie odbywa się na stronie Discord. Panel nie prosi o hasło ani token bota.</p><a class="button" href="/auth/discord">Zaloguj przez Discord</a></section>
     <section id="dashboard" class="hidden"><div id="module-statystyki" class="module-anchor"></div><div class="eyebrow">PANEL STATYSTYKI</div><h1>Statystyki serwera</h1><p class="muted">Aktualne liczniki Strefy Gry i Rozrywki, pobierane z bota i kanałów głosowych.</p><div class="row"><button id="statisticsRefresh" class="button secondary" type="button">⟳ Odśwież statystyki</button><span id="statisticsUpdated" class="muted">Oczekuję na dane…</span></div><div class="grid"><div class="stat"><small>🟢 Online</small><strong id="serverOnline">—</strong></div><div class="stat"><small>👥 Wszyscy</small><strong id="serverMembers">—</strong></div><div class="stat"><small>🧑 Użytkownicy</small><strong id="serverHumans">—</strong></div><div class="stat"><small>🤖 Boty</small><strong id="serverBots">—</strong></div></div><div class="grid"><div class="stat"><small>💬 Kanały tekstowe</small><strong id="serverTextChannels">—</strong></div><div class="stat"><small>🔊 Kanały głosowe</small><strong id="serverVoiceChannels">—</strong></div><div class="stat"><small>🗂️ Kategorie</small><strong id="serverCategories">—</strong></div><div class="stat"><small>🪙 Monety w obiegu</small><strong id="serverCoins">—</strong></div></div><div class="card"><h2>Statystyki rekrutacji</h2><p class="muted">Podsumowanie statusów i ostatnich zgłoszeń kandydatów.</p><div class="grid"><div class="stat"><small>Oczekujące</small><strong id="pending">—</strong></div><div class="stat"><small>Zaakceptowane</small><strong id="accepted">—</strong></div><div class="stat"><small>Odrzucone</small><strong id="rejected">—</strong></div><div class="stat"><small>Zamknięte</small><strong id="closed">—</strong></div></div>
       <div class="card"><h2>Ostatnie podania</h2><p class="muted">Odpowiedzi kandydatów nie są pokazywane na tej stronie. Podania rozpatruj komendami bota: <code>/rekrutacja-akceptuj</code>, <code>/rekrutacja-odrzuc</code> lub <code>/rekrutacja-zamknij</code>.</p><div style="overflow:auto"><table class="table"><thead><tr><th>ID</th><th>Status</th><th>Utworzono</th></tr></thead><tbody id="applications"></tbody></table></div></div>
@@ -367,12 +371,20 @@ $cc('ccBotStatus').textContent=(session.discordReady??session.botReady)?'● Onl
 const response=await fetch('/api/guilds',{credentials:'same-origin',cache:'no-store'});
 if(!response.ok)throw Error('Nie udało się pobrać serwerów');
 const data=await response.json();guilds=Array.isArray(data.guilds)?data.guilds.filter(g=>g&&typeof g.name==='string'&&/^\d{17,20}$/.test(String(g.id))).slice(0,20):[];render();
-try{const res=await fetch('/api/server-control',{credentials:'same-origin'});if(res.ok){const info=await res.json();$cc('ccMembers').textContent=Number(info.server?.memberCount||0).toLocaleString('pl-PL');const channels=$cc('ccChannels');channels.replaceChildren();for(const ch of (info.channels||[]).slice(0,5)){const line=document.createElement('div');line.className='cc-channel';const n=document.createElement('span');n.textContent=(ch.type==='tekstowy'?'# ':'🔊 ')+ch.name;const st=document.createElement('span');st.textContent=ch.canSend?'● Dostępny':'○ Brak dostępu';line.append(n,st);channels.append(line)}if(!(info.channels||[]).length)channels.textContent='Brak kanałów.'}}}catch{}
+try{const res=await fetch('/api/server-control',{credentials:'same-origin'});if(res.ok){const info=await res.json();$cc('ccMembers').textContent=Number(info.server?.memberCount||0).toLocaleString('pl-PL');const channels=$cc('ccChannels');channels.replaceChildren();for(const ch of (info.channels||[]).slice(0,5)){const line=document.createElement('div');line.className='cc-channel';const n=document.createElement('span');n.textContent=(ch.type==='tekstowy'?'# ':'🔊 ')+ch.name;const st=document.createElement('span');st.textContent=ch.canSend?'● Dostępny':'○ Brak dostępu';line.append(n,st);channels.append(line)}if(!(info.channels||[]).length)channels.textContent='Brak kanałów.'}}catch{}
 }catch(e){$cc('ccGuilds').textContent=e.message}
 }
 $cc('ccSearch').addEventListener('input',render);
-window.addEventListener('hashchange',()=>{if(location.hash==='#server-dashboard')void refresh()});
+const homeHash=()=>location.hash==='#server-dashboard'||location.hash==='#server-control'||location.hash==='';
+const parkHome=()=>{if(homeHash()&&typeof requestAnimationFrame==='function')requestAnimationFrame(()=>window.scrollTo(0,0));};
+window.addEventListener('hashchange',()=>{if(homeHash())void refresh();parkHome();});
+document.querySelector('.command-center a[href="#server-control"]')?.addEventListener('click',event=>{
+event.preventDefault();
+const reveal=()=>document.getElementById('serverChannelRows')?.scrollIntoView({block:'start'});
+if(!homeHash()){location.hash='#server-control';setTimeout(reveal,0);}else reveal();
+});
 void refresh();
+parkHome();
 })();
 </script>
 </body></html>
