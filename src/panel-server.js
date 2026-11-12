@@ -148,7 +148,7 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         sessions.delete(current.id);
         sessions.set(newId, { createdAt: Date.now(), discordAccessToken: token.access_token, guildListUpdatedAt: Date.now(), user: { id: user.id, username: user.global_name || user.username }, guildId: selected?.id || PRIMARY_GUILD_ID, manageableGuilds, botGuildIds: [...botIds], canManage: Boolean(selected) });
         setSessionCookie(res, newId, PANEL_SESSION_SECRET, baseUrl);
-        res.writeHead(302, { Location: '/wybor-serwera' });
+        res.writeHead(302, { Location: '/#server-control' });
         return res.end();
       }
 

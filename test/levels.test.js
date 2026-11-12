@@ -109,7 +109,7 @@ test('błąd kanału nie odbiera XP; pusta konfiguracja wyłącza powiadomienia'
 test('karta pokazuje lokalny avatar, ranking oraz XP w bieżącym poziomie',()=>{
  const card=buildLevelCard({user:{username:'Gracz',displayAvatarURL:()=> 'https://cdn.discordapp.com/avatar.png'},member:{displayName:'Nazwa serwerowa',displayAvatarURL:()=> 'https://cdn.discordapp.com/guild.png'},account:{xp:105,messageCount:7,voiceMinutes:2},rank:3,guild:{name:'Strefa'},timestamp:1000000}).toJSON();
  assert.equal(card.title,'⭐ Karta poziomu — Nazwa serwerowa');assert.equal(card.thumbnail.url,'https://cdn.discordapp.com/guild.png');
- assert.match(card.description,/Poziom 1 · Ranking #3/);assert.match(card.description,/5 \/ 300 XP/);assert.match(card.description,/295 XP/);assert.match(card.description,/łącznie \*\*105 XP/);assert.equal(card.description.match(/[█░]/g).length,20);assert.match(card.footer.text,/Strefa.*7.*2 min/);
+ assert.match(card.description,/Poziom 1 · Ranking #3/);assert.match(card.description,/5 \/ 300 XP/);assert.match(card.description,/295 XP/);assert.match(card.description,/Łącznie: \*\*105 XP\*\*/);assert.equal(card.description.match(/[█░]/g).length,20);assert.match(card.footer.text,/Strefa.*7.*2 min/);
 });
 test('karta nowej osoby nie wymyśla miejsca w rankingu, próg rozpoczyna nowy pasek',()=>{
  for(const xp of [0,100,400]){const card=buildLevelCard({user:{username:'Nowy'},account:{xp},rank:null}).toJSON();assert.match(card.description,/Ranking —/);assert.equal(card.description.includes('█'),false);assert.match(card.description,/░{20}/);}
