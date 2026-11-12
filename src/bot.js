@@ -17,7 +17,7 @@ import { BotStatusReporter, sanitizeDiagnostic } from './status-reporter.js';
 import { WorkerStatus } from './worker-status.js';
 import { withTimeout } from './async-operation.js';
 import { levelCommands } from './levels.js';
-import { changelogCommands, handleChangelogCommand } from './changelog.js';
+import { changelogCommands, handleChangelogCommand, publishGuildChangelog } from './changelog.js';
 import { welcomeCommands, farewellCommands } from './welcome.js';
 import { communityCommands } from './community.js';
 import { createServerBuilderSystem, serverBuilderCommands } from './server-builder.js';
@@ -113,6 +113,7 @@ function initializeGuild(guild) {
       commands: [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands, ...changelogCommands, ...proCommands],
       isActive: () => client.guilds.cache.has(guild.id) && !shutdownPromise, reportFailure });
     if (!registration.ok || !client.guilds.cache.has(guild.id)) return;
+    await publishGuildChangelog(guild, featureStore, message => console.error(message));
     await applicationStores.get(guild.id);
     const runtime = runtimes.get(guild.id);
     if (!runtime) return;

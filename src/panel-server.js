@@ -13,6 +13,7 @@ import { readServerStatistics } from './server-statistics.js';
 import { guildStore, botInvite } from './guild-store.js';
 import { millionaireSummary } from './millionaires.js';
 import { fetchUserGuilds, fetchBotGuildIds, chooseHomeGuild, manageableGuilds as selectManageableGuilds } from './guild-discovery.js';
+import { loadReleases } from './changelog-releases.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -687,9 +688,9 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
       if (req.method === 'GET' && route === '/aktualizacje.js') {
         await rootFeatureStore.refresh();
         const entries = rootFeatureStore.snapshot().changelog?.[PRIMARY_GUILD_ID] ?? [];
-        const safeJson = JSON.stringify(Array.isArray(entries) ? entries : []).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+        const safe = value => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
         res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-        return res.end('window.STREFA_CHANGELOG = ' + safeJson + ';');
+        return res.end(`window.STREFA_RELEASES = ${safe(loadReleases())};\nwindow.STREFA_CHANGELOG = ${safe(Array.isArray(entries) ? entries : [])};`);
       }
       if (req.method === 'GET' && route === '/poziomy-podglad') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });

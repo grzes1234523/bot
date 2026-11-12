@@ -20,6 +20,8 @@ export const initialState = () => ({
   verification: { roleId: null, channelId: null, messageId: null, title: '✅ Weryfikacja', description: 'Kliknij przycisk, aby otrzymać rolę po weryfikacji.', buttonLabel: 'Zweryfikuj się' },
   automod: { keywords: [], ruleId: null, enabled: true },
   logChannelId: null,
+  changelog: {},
+  changelogPosts: {},
 });
 
 export class FeatureStore {
@@ -75,6 +77,8 @@ export class FeatureStore {
     state.embeds.drafts ??= [];
     state.verification = { ...initial.verification, ...(state.verification ?? {}) };
     state.automod = { ...initial.automod, ...(state.automod ?? {}) };
+    state.changelog = { ...(state.changelog ?? {}) };
+    state.changelogPosts = { ...(state.changelogPosts ?? {}) };
     return state;
   }
 
