@@ -2,35 +2,57 @@
 <html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Podgląd poziomów | Strefa Gry i Rozrywki</title>
 <style>
-:root{color-scheme:dark;--bg:#080a17;--card:#141a31;--muted:#afbadb;--purple:#9868ff}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 20% 0%,#35225c,transparent 45%),var(--bg);color:#eff2ff;font:16px/1.5 system-ui,Segoe UI,sans-serif}
-main{max-width:900px;margin:auto;padding:32px 20px}.brand{font-weight:800;color:#d6c9ff}h1{font-size:clamp(28px,5vw,46px)}p{color:var(--muted)}a{color:#cfbaff}
-.panel{border:1px solid #5d518c;border-radius:22px;overflow:hidden;background:linear-gradient(130deg,#1b203b,#0e1429);box-shadow:0 20px 50px #0006}
-.head{padding:22px 26px;background:linear-gradient(115deg,#4a278d,#203e79);display:flex;justify-content:space-between;gap:12px;align-items:center}.head strong{font-size:23px}
-.content{padding:28px}.user{display:flex;gap:16px;align-items:center;margin-bottom:26px}.avatar{display:grid;place-items:center;background:#5041a8;border-radius:20px;width:68px;height:68px;font-weight:900;font-size:28px;border:2px solid #9d77ff}
-.name{font-weight:800;font-size:23px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px}.stat{padding:17px;background:#1d2544;border:1px solid #3a4770;border-radius:13px}.stat small{display:block;color:var(--muted)}.stat strong{font-size:25px}
-.track{height:23px;padding:4px;border-radius:30px;border:1px solid #5c538d;background:#2c3052;overflow:hidden}.fill{height:100%;width:0;background:linear-gradient(90deg,#8150ff,#c078ff,#6ba5ff);border-radius:30px;transition:width .3s}
-.between{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:12px 0}.controls{display:flex;flex-wrap:wrap;gap:12px;margin-top:25px}button{border:0;border-radius:12px;background:#8057ed;color:white;font:inherit;font-weight:800;padding:11px 18px;cursor:pointer}button.secondary{background:#344166}input{color:white;background:#202a4a;border:1px solid #6a70a0;border-radius:9px;padding:10px;font:inherit;max-width:250px}label{display:block;margin-bottom:20px}.notice{color:#dbcaff;margin-top:22px}.hint{font-size:13px}
-@media(max-width:600px){.stats{grid-template-columns:1fr}.content{padding:18px}.head{padding:18px}}
+:root{color-scheme:dark;--bg:#0d0d22;--neon:#b94aff;--text:#f8f4ff}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 80% 0%,#5612a847,transparent 42%),linear-gradient(135deg,#0d0d22,#100c23);color:var(--text);font:16px/1.45 system-ui,Segoe UI,sans-serif}
+main{max-width:760px;margin:auto;padding:36px 18px 70px}.brand{font-weight:800;letter-spacing:.4px}.brand span{color:#d052fa}h1{font-size:clamp(28px,5vw,44px);margin:12px 0}p{color:#c7bfe3}a{color:#c594ff}
+.card{border:1px solid #b94aff;border-radius:22px;padding:26px;background:linear-gradient(145deg,#22113c,#15112f);box-shadow:0 0 24px #9b36ff38}
+.top{display:flex;justify-content:space-between;gap:18px;align-items:center}
+.line{margin:6px 0;font-size:20px}.line span{color:#d6d1e7;margin-right:8px}
+.profile{display:flex;align-items:center;gap:12px;color:#d6d1e7}
+.avatar{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;font-size:32px;font-weight:800;border:3px solid #b866ff;background:#272245;box-shadow:0 0 16px #a14aff}
+.xp-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:22px 0 12px;font-size:18px}
+.track{height:22px;border-radius:999px;border:1px solid #b54cff;background:#17132c;overflow:hidden}
+.fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,#a62df9,#6c21db 55%,#24b9ff);box-shadow:0 0 16px #a14aff}
+.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}button,input{font:inherit}button{border:1px solid #ce73ff;border-radius:10px;background:linear-gradient(120deg,#a62df9,#6c21db);color:#fff;font-weight:800;padding:11px 16px;cursor:pointer}button.secondary{background:#272347}input{color:#fff;background:#17132c;border:1px solid #b54cff;border-radius:10px;padding:10px 12px;max-width:240px}label{display:block;margin:18px 0 0;color:#c7bfe3}.notice{min-height:1.4em;margin-top:14px}
+@media(max-width:560px){.top{align-items:flex-start}.avatar{width:68px;height:68px}}
 </style></head>
-<body><main><div class="brand">🎮 STREFA GRY I ROZRYWKI</div><h1>🏆 Podgląd poziomu</h1>
-<p>Wersja demonstracyjna. XP poniżej jest testowe — nie zmienia danych na Discordzie.</p>
-<section class="panel" aria-label="Podgląd poziomu"><div class="head"><strong>Twój profil</strong><strong id="header-level">LEVEL 0</strong></div>
-<div class="content"><label>Nick użytkownika: <input id="nickname" maxlength="32" value="NIK"></label>
-<div class="user"><div id="avatar" class="avatar">N</div><div><div id="name" class="name">NIK</div><span id="mention">@NIK</span></div></div>
-<div class="stats"><div class="stat"><small>🏅 Poziom</small><strong id="level">0</strong></div><div class="stat"><small>✨ Łączne XP</small><strong id="total">0</strong></div><div class="stat"><small>🚀 Do awansu</small><strong id="remaining">100 XP</strong></div></div>
-<div class="between"><strong>📈 Postęp poziomu</strong><span id="xp-label">0 / 100 XP</span></div>
-<div class="track" role="progressbar" aria-label="Postęp poziomu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-track"><div class="fill" id="progress"></div></div>
-<div class="between"><span id="current-label">Poziom 0</span><span id="next-label">Poziom 1</span></div>
-<div id="notice" class="notice" aria-live="polite">🎮 Testuj zdobywanie XP!</div>
-<div class="controls"><button id="add25">+25 XP</button><button id="add100">+100 XP</button><button id="reset" class="secondary">↺ Resetuj</button></div>
-</div></section><p class="hint">Właściwy bot używa progów XP: 100 × poziom². <a href="/#module-poziomy">Wróć do ustawień poziomów</a>.</p></main>
+<body><main>
+<div class="brand">🎮 STREFA <span>GRY I ROZRYWKI</span></div>
+<h1>Karta poziomu</h1>
+<p>Ten sam układ wysyła komenda <code>/poziom</code>. XP poniżej jest testowe i nie zmienia danych na Discordzie.</p>
+<article class="card" aria-label="Karta poziomu">
+  <div class="top">
+    <div>
+      <div class="line"><span>User:</span><strong id="name">NIK</strong></div>
+      <div class="line"><span>Level:</span><strong id="level">0</strong></div>
+    </div>
+    <div class="profile"><span>Profil:</span><div id="avatar" class="avatar" aria-hidden="true">N</div></div>
+  </div>
+  <div class="xp-row"><strong id="xp-label">0 / 100 XP</strong><strong id="level-mark">LEVEL 0</strong></div>
+  <div class="track" id="progress-track" role="progressbar" aria-label="Postęp do następnego poziomu" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="progress"></div></div>
+  <label>Nick <input id="nickname" maxlength="32" value="NIK"></label>
+  <div class="controls"><button id="add25" type="button">+25 XP</button><button id="add100" type="button">+100 XP</button><button id="reset" class="secondary" type="button">Resetuj</button></div>
+  <div id="notice" class="notice" aria-live="polite"></div>
+</article>
+<p>Progi XP bota: 100 × poziom². <a href="/#module-poziomy">Wróć do ustawień poziomów</a>.</p>
+</main>
 <script>
-(()=>{'use strict';let xp=0;const $=id=>document.getElementById(id);const levelForXp=x=>Math.floor(Math.sqrt(Math.max(0,x)/100));
-function render(){const level=levelForXp(xp),start=100*level*level,next=100*(level+1)*(level+1),progress=xp-start,needed=next-start,percent=Math.floor(progress/needed*100);
-$('header-level').textContent='LEVEL '+level;$('level').textContent=level;$('total').textContent=xp;$('remaining').textContent=(next-xp)+' XP';$('xp-label').textContent=progress+' / '+needed+' XP';$('progress').style.width=percent+'%';$('progress-track').setAttribute('aria-valuenow',percent);$('current-label').textContent='Poziom '+level;$('next-label').textContent='Poziom '+(level+1);}
-function add(amount){const old=levelForXp(xp);xp+=amount;render();const level=levelForXp(xp);$('notice').textContent=level>old?'🎉 Awans na poziom '+level+'!':'✨ Zyskano '+amount+' XP!';}
-$('add25').addEventListener('click',()=>add(25));$('add100').addEventListener('click',()=>add(100));$('reset').addEventListener('click',()=>{xp=0;render();$('notice').textContent='🎮 Testuj zdobywanie XP!';});
-$('nickname').addEventListener('input',e=>{const name=e.target.value.trim()||'NIK';$('name').textContent=name;$('mention').textContent='@'+name;$('avatar').textContent=name.charAt(0).toUpperCase();});render();
+(()=>{'use strict';let xp=0;const $=id=>document.getElementById(id);
+const levelForXp=value=>Math.floor(Math.sqrt(Math.max(0,value)/100));
+function render(){
+  const level=levelForXp(xp),start=100*level*level,next=100*(level+1)*(level+1),progress=xp-start,needed=next-start;
+  const percent=Math.max(0,Math.min(100,Math.floor(progress/needed*100)));
+  $('level').textContent=String(level);
+  $('xp-label').textContent=`${progress} / ${needed} XP`;
+  $('level-mark').textContent=`LEVEL ${level}`;
+  $('progress').style.width=`${percent}%`;
+  $('progress-track').setAttribute('aria-valuenow',String(percent));
+}
+function add(amount){const old=levelForXp(xp);xp+=amount;render();$('notice').textContent=levelForXp(xp)>old?`Awans na poziom ${levelForXp(xp)}.`:`+${amount} XP`;}
+$('add25').addEventListener('click',()=>add(25));
+$('add100').addEventListener('click',()=>add(100));
+$('reset').addEventListener('click',()=>{xp=0;render();$('notice').textContent='';});
+$('nickname').addEventListener('input',event=>{const name=event.target.value.trim()||'NIK';$('name').textContent=name;$('avatar').textContent=name.charAt(0).toUpperCase();});
+render();
 })();
 </script></body></html>
