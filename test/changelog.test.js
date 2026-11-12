@@ -59,16 +59,16 @@ function guildFixture({ manage = true, existing = false, canSend = true } = {}) 
   return { guild, sent, created, me, everyone };
 }
 
-test('kanał informacja-bot powstaje tylko raz i jest tylko do odczytu dla wszystkich', async () => {
+test('kanał informacja-bot powstaje tylko raz i jest ukryty przed wszystkimi', async () => {
   const fresh = guildFixture();
   const channel = await ensureChangelogChannel(fresh.guild, () => {});
   assert.equal(channel.name, CHANGELOG_CHANNEL_NAME);
   assert.equal(fresh.created.length, 1);
   const [overwrite] = fresh.created[0].permissionOverwrites;
   assert.equal(overwrite.id, fresh.everyone.id);
-  assert.ok(overwrite.allow.includes(PermissionFlagsBits.ViewChannel));
-  assert.ok(overwrite.deny.includes(PermissionFlagsBits.SendMessages));
-  assert.ok(fresh.created[0].permissionOverwrites[1].allow.includes(PermissionFlagsBits.SendMessages));
+  assert.equal(overwrite.allow, undefined);
+  assert.ok(overwrite.deny.includes(PermissionFlagsBits.ViewChannel));
+  assert.ok(fresh.created[0].permissionOverwrites.at(-1).allow.includes(PermissionFlagsBits.SendMessages));
   const again = await ensureChangelogChannel(fresh.guild, () => {});
   assert.equal(again.id, channel.id);
   assert.equal(fresh.created.length, 1);
@@ -98,6 +98,50 @@ test('wpis changelogu jest wysyłany raz, a restart nie dubluje embedu', async (
   assert.deepEqual(second.posted, []);
   assert.equal(sent.length, loadReleases().length);
   assert.equal(changelogEmbed(loadReleases()[0]).toJSON().footer.text, 'informacja-bot');
+});
+
+test('główny serwer publikuje na CHANGELOG_CHANNEL_ID i pokazuje go tylko administracji', async () => {
+  const logs = [];
+  const edits = [];
+  const sent = [];
+  const admin = { id: 'admin-role', permissions: { has: flag => flag === PermissionFlagsBits.Administrator } };
+  const staff = { id: 'staff-role', permissions: { has: () => false } };
+  const channel = {
+    id: '1570530877379977296', name: 'admin-info', type: ChannelType.GuildText, guildId: '123456789012345679',
+    permissionsFor: () => ({ has: () => true }),
+    permissionOverwrites: { set: async (overwrites) => { edits.push(overwrites); } },
+    send: async payload => { sent.push(payload); return { id: 'm' }; },
+  };
+  const guild = {
+    id: '123456789012345679', name: 'Strefa',
+    roles: { everyone: { id: 'everyone' }, cache: new Map([[admin.id, admin], [staff.id, staff]]) },
+    members: { me: { id: 'bot', permissions: { has: () => true } } },
+    channels: { cache: new Map(), fetch: async id => id === channel.id ? channel : null, create: async () => { throw new Error('nie twórz'); } },
+  };
+  const found = await ensureChangelogChannel(guild, { log: message => logs.push(message), primaryGuildId: guild.id, staffRoleId: staff.id, channelId: undefined });
+  assert.equal(found.id, channel.id);
+  assert.equal(logs.length, 0);
+  const ids = edits[0].map(item => item.id);
+  assert.deepEqual(ids, ['everyone', admin.id, staff.id, 'bot']);
+  assert.ok(edits[0][0].deny.includes(PermissionFlagsBits.ViewChannel));
+  assert.ok(edits[0][1].allow.includes(PermissionFlagsBits.ViewChannel));
+  assert.ok(edits[0][2].allow.includes(PermissionFlagsBits.ViewChannel));
+  const store = memoryStore();
+  store.snapshot().changelogPosts[guild.id] = ['2026.11.12-10'];
+  const first = await publishGuildChangelog(guild, store, { log: () => {}, primaryGuildId: guild.id, channelId: channel.id });
+  assert.ok(first.posted.includes('2026.11.12-10'));
+  assert.equal(sent.length, loadReleases().length);
+  const second = await publishGuildChangelog(guild, store, { log: () => {}, primaryGuildId: guild.id, channelId: channel.id });
+  assert.deepEqual(second.posted, []);
+  assert.equal(sent.length, loadReleases().length);
+  assert.equal(store.snapshot().changelogPosts[guild.id].channelId, channel.id);
+});
+
+test('bez ID kanału na obcym serwerze nadal powstaje informacja-bot', async () => {
+  const fresh = guildFixture();
+  const channel = await ensureChangelogChannel(fresh.guild, { primaryGuildId: '999999999999999999', channelId: '1570530877379977296' });
+  assert.equal(channel.name, CHANGELOG_CHANNEL_NAME);
+  assert.equal(fresh.created.length, 1);
 });
 
 test('strona aktualizacji rozdziela Zmienione, Dodane i Usunięte', () => {

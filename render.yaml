@@ -55,6 +55,8 @@ services:
         sync: false
       - key: LOG_CHANNEL_ID
         sync: false
+      - key: CHANGELOG_CHANNEL_ID
+        value: "1570530877379977296"
       - key: CLIENT_SECRET
         sync: false
       - key: PANEL_SESSION_SECRET

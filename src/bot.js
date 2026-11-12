@@ -113,7 +113,7 @@ function initializeGuild(guild) {
       commands: [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands, ...changelogCommands, ...proCommands],
       isActive: () => client.guilds.cache.has(guild.id) && !shutdownPromise, reportFailure });
     if (!registration.ok || !client.guilds.cache.has(guild.id)) return;
-    await publishGuildChangelog(guild, featureStore, message => console.error(message));
+    await publishGuildChangelog(guild, featureStore, { log: message => console.error(message), primaryGuildId: cfg.guildId, staffRoleId: cfg.staffRoleId, channelId: process.env.CHANGELOG_CHANNEL_ID });
     await applicationStores.get(guild.id);
     const runtime = runtimes.get(guild.id);
     if (!runtime) return;

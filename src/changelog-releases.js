@@ -1,6 +1,19 @@
 /** Jedno źródło wpisów o zmianach bota i strony. Daty pochodzą z historii gita. */
 export const changelogReleases = [
   {
+    id: '2026.11.12-admin',
+    version: '2026.11.12-admin',
+    date: '2026-11-12',
+    zmienione: [
+      'Na głównym serwerze wpisy changelogu trafiają do istniejącego kanału o ID z CHANGELOG_CHANNEL_ID (domyślnie 1570530877379977296), a nie do nowo tworzonego informacja-bot.',
+      'Ten kanał jest widoczny tylko dla administracji: @everyone nie widzi kanału, a widzą go role z uprawnieniem Administrator, skonfigurowana rola STAFF i bot.',
+    ],
+    dodane: [
+      'Zmienna CHANGELOG_CHANNEL_ID wskazuje kanał informacji na głównym serwerze. Na pozostałych serwerach bot nadal tworzy kanał informacja-bot.',
+    ],
+    usuniete: [],
+  },
+  {
     id: '2026.11.12-11',
     version: '2026.11.12-11',
     date: '2026-11-12',
