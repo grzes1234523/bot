@@ -41,14 +41,13 @@ function ensureGuild(state, guildId) {
 export function buildLevelCard({user,member,account,rank,guild,timestamp=Date.now()}) {
   const xp=Math.max(0,Number(account.xp)||0),level=levelForXp(xp);
   const start=xpForLevel(level),next=xpForLevel(level+1),progress=xp-start,needed=next-start;
-  const percent=Math.min(100,Math.max(0,Math.floor(progress/needed*100)));
   const filled=Math.min(20,Math.floor(progress/needed*20));
   const bar='█'.repeat(filled)+'░'.repeat(20-filled);
   const format=value=>value.toLocaleString('pl-PL');
   const name=member?.displayName||user.globalName||user.username;
-  const embed=new EmbedBuilder().setColor(0xf1c40f).setTitle(`⭐ Karta poziomu — ${name}`.slice(0,256))
-    .setDescription(`**Poziom ${level} · Ranking ${rank?'#'+rank:'—'}**\n\n\`${bar}\`\n**${percent}%** · ${format(progress)} / ${format(needed)} XP\nŁącznie: **${format(xp)} XP**\n\nDo poziomu **${level+1}** brakuje **${format(next-xp)} XP**`)
-    .setFooter({text:`${guild?.name||'Serwer Discord'} · Wiadomości: ${account.messageCount||0} · Rozmowy: ${account.voiceMinutes||0} min`})
+  const embed=new EmbedBuilder().setColor(0x9d5cff).setTitle('Karta poziomu')
+    .setDescription(`**User:** ${name}\n**Level:** ${level}\n\n\`${format(progress)} / ${format(needed)} XP\`   **LEVEL ${level}**\n\`${bar}\``)
+    .setFooter({text:`${guild?.name||'Serwer Discord'} · Ranking ${rank?'#'+rank:'—'} · Łącznie ${format(xp)} XP · Wiadomości: ${account.messageCount||0} · Rozmowy: ${account.voiceMinutes||0} min`})
     .setTimestamp(timestamp);
   const avatar=member?.displayAvatarURL?.({size:256})||user.displayAvatarURL?.({size:256});
   if(avatar)embed.setThumbnail(avatar);
