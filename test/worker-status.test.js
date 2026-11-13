@@ -202,6 +202,17 @@ test('niepowodzenie zapisu nie blokuje następnych prób tej samej instancji', a
   assert.equal((await f.worker().read()).botStatus, 'online');
 });
 
+test('ping i czas startu są odczytywane tylko z poprawnego sygnału', async () => {
+  const f = fixture();
+  const writer = f.worker();
+  await writer.publish({ ready: true, botId: CLIENT_ID, ping: 42.4, startedAt: '2026-11-13T10:00:00.000Z' });
+  assert.deepEqual(await writer.read(), { botReady: true, botStatus: 'online', botLastSeen: f.iso(), botPing: 42, botStartedAt: '2026-11-13T10:00:00.000Z' });
+  await writer.publish({ ready: true, botId: CLIENT_ID, ping: -1, startedAt: 'nie-data' });
+  const kept = await writer.read();
+  assert.equal(kept.botPing, 42);
+  assert.equal(kept.botStartedAt, '2026-11-13T10:00:00.000Z');
+});
+
 test('wymaga tożsamości konfiguracji oraz logicznej gotowości', async () => {
   assert.throws(() => new WorkerStatus({ guildId: '', clientId: CLIENT_ID }), /GUILD_ID/);
   const f = fixture();

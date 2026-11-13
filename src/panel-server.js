@@ -14,6 +14,7 @@ import { guildStore, botInvite } from './guild-store.js';
 import { millionaireSummary } from './millionaires.js';
 import { fetchUserGuilds, fetchBotGuildIds, chooseHomeGuild, manageableGuilds as selectManageableGuilds } from './guild-discovery.js';
 import { loadReleases } from './changelog-releases.js';
+import { changelogFeed, publicDashboard } from './dashboard.js';
 import { ActionRowBuilder, AutoModerationActionType, AutoModerationRuleEventType, AutoModerationRuleTriggerType, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 
 const PANEL_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'panel');
@@ -67,10 +68,25 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
   const creatingLevelChannel = new Set();
   // The panel's REST access and the worker's Gateway connection are independent.
   const isDiscordAvailable = () => discordMode === 'rest' || client.isReady();
+  const presentStatus = (base, discordReady) => ({
+    botReady: base?.botReady ?? null,
+    botStatus: base?.botStatus ?? 'unknown',
+    botLastSeen: base?.botLastSeen ?? null,
+    botPing: Number.isFinite(base?.botPing) ? base.botPing : null,
+    botStartedAt: typeof base?.botStartedAt === 'string' ? base.botStartedAt : null,
+    discordReady,
+  });
   const connectionStatus = async (guildId = PRIMARY_GUILD_ID) => {
     if (discordMode === 'gateway') {
       const ready = client.isReady();
-      return { botReady: ready, discordReady: ready, botStatus: ready ? 'online' : 'offline', botLastSeen: null };
+      const ping = Number(client.ws?.ping);
+      return presentStatus({
+        botReady: ready,
+        botStatus: ready ? 'online' : 'offline',
+        botLastSeen: null,
+        botPing: Number.isFinite(ping) && ping >= 0 ? Math.round(ping) : null,
+        botStartedAt: ready && client.readyTimestamp ? new Date(client.readyTimestamp).toISOString() : null,
+      }, ready);
     }
     let worker = { botReady: null, botStatus: 'unknown', botLastSeen: null };
     if (getWorkerStatus) {
@@ -79,7 +95,7 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         worker = await withTimeout(() => getWorkerStatus(guildId), workerStatusTimeoutMs) ?? unavailable;
       } catch { worker = unavailable; }
     }
-    return { ...worker, discordReady: isDiscordAvailable() };
+    return presentStatus(worker, isDiscordAvailable());
   };
   const { CLIENT_ID = '', CLIENT_SECRET = '', GUILD_ID: PRIMARY_GUILD_ID = '', PANEL_BASE_URL = 'http://localhost:3000', PANEL_SESSION_SECRET = '', PANEL_HOST = '127.0.0.1' } = process.env;
   const panelPort = Number(process.env.PORT || process.env.PANEL_PORT || 3000);
@@ -101,6 +117,10 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
       }
       if (req.method === 'GET' && route === '/health') {
         return json(res, 200, { ok: true, ...await connectionStatus(), panelConfigured: configReady });
+      }
+      if (req.method === 'GET' && route === '/favicon.ico') {
+        res.writeHead(200, { 'Content-Type': 'image/x-icon', 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' });
+        return fs.createReadStream(path.join(PANEL_DIR, 'assets', 'favicon.ico')).pipe(res);
       }
 
       if (req.method === 'GET' && route === '/auth/discord') {
@@ -196,7 +216,8 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
         if (route === '/api/session') {
           if (!current?.value.user) return json(res, 401, { authenticated: false, configured: configReady });
           const guild = client.guilds.cache.get(GUILD_ID);
-          return json(res, 200, { authenticated: true, user: current.value.user, canManage: current.value.canManage, guildId: GUILD_ID, ...await connectionStatus(GUILD_ID), guildName: guild?.name || 'Serwer Discord', guildIcon: guild?.iconURL({ size: 128 }) || null });
+          const status = await connectionStatus(GUILD_ID);
+          return json(res, 200, { authenticated: true, user: current.value.user, canManage: current.value.canManage, guildId: GUILD_ID, ...status, guildName: guild?.name || 'Serwer Discord', guildIcon: guild?.iconURL({ size: 128 }) || null, ...(current.value.canManage ? { dashboard: publicDashboard(featureStore.snapshot(), GUILD_ID, PRIMARY_GUILD_ID) } : {}) });
         }
         if (current?.value.user && current.value.canManage && refreshData) {
           try { await withTimeout(refreshData, refreshDataTimeoutMs); }
@@ -404,10 +425,13 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
             const canSend = text && Boolean(permissions?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages]));
             return { id: channel.id, name: channel.name, type: text ? 'tekstowy' : 'głosowy', parentName: channel.parent?.name ?? 'Bez kategorii', slowmode: channel.rateLimitPerUser ?? 0, accessible, canSend };
           }).sort((a, b) => a.parentName.localeCompare(b.parentName, 'pl') || a.name.localeCompare(b.name, 'pl'));
+          const statistics = readServerStatistics(featureStore.snapshot().serverStatistics, GUILD_ID);
+          const memberCount = statistics?.members ?? guild.memberCount ?? 0;
           return json(res, 200, {
-            server: { id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }), memberCount: readServerStatistics(featureStore.snapshot().serverStatistics, GUILD_ID)?.members ?? guild.memberCount ?? 0 },
+            server: { id: guild.id, name: guild.name, icon: guild.iconURL({ size: 128 }), memberCount, online: statistics?.online ?? null },
             channels: channelList,
             counts: { servers: (current.value.manageableGuilds ?? []).filter(item => (current.value.botGuildIds ?? []).includes(item.id)).length || 1, channels: channelList.length, ready: channelList.filter(channel => channel.canSend).length, needsAttention: channelList.filter(channel => !channel.accessible).length },
+            live: { members: memberCount, online: statistics?.online ?? null, humans: statistics?.humans ?? null, bots: statistics?.bots ?? null, updatedAt: statistics?.updatedAt ?? null },
           });
         }
         if (route === '/api/moderation/settings') {
@@ -688,9 +712,10 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
       if (req.method === 'GET' && route === '/aktualizacje.js') {
         await rootFeatureStore.refresh();
         const entries = rootFeatureStore.snapshot().changelog?.[PRIMARY_GUILD_ID] ?? [];
+        const releases = loadReleases();
         const safe = value => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
         res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-        return res.end(`window.STREFA_RELEASES = ${safe(loadReleases())};\nwindow.STREFA_CHANGELOG = ${safe(Array.isArray(entries) ? entries : [])};`);
+        return res.end(`window.STREFA_RELEASES = ${safe(releases)};\nwindow.STREFA_CHANGELOG = ${safe(changelogFeed(releases, entries))};`);
       }
       if (req.method === 'GET' && route === '/poziomy-podglad') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });

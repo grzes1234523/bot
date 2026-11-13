@@ -1,6 +1,20 @@
 /** Jedno źródło wpisów o zmianach bota i strony. Daty pochodzą z historii gita. */
 export const changelogReleases = [
   {
+    id: '2026.11.13-panel',
+    version: '2026.11.13-panel',
+    date: '2026-11-13',
+    zmienione: [
+      'Pulpit serwera pokazuje nazwę i ikonę, liczbę członków, osoby online oraz stan bota.',
+      'Sekcja „Ostatnie aktualizacje” korzysta z tej samej historii wersji co karty powyżej.',
+    ],
+    dodane: [
+      'Karty modułów, wyszukiwarka komend, pierwsze kroki i menu na telefonie.',
+      'Ikona strony pod adresem /favicon.ico.',
+    ],
+    usuniete: [],
+  },
+  {
     id: '2026.11.12-admin',
     version: '2026.11.12-admin',
     date: '2026-11-12',

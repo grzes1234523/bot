@@ -61,7 +61,9 @@ const workerStatuses = new Map([[cfg.guildId, workerStatus]]);
 function publishWorkerStatus(ready = client.isReady()) {
   if (shutdownPromise) return Promise.resolve(false);
   for (const id of client.guilds.cache.keys()) if (!workerStatuses.has(id)) workerStatuses.set(id, new WorkerStatus({ ...cfg, guildId: id }));
-  return withTimeout(() => Promise.all([...workerStatuses].map(([id, status]) => status.publish({ ready: ready && client.guilds.cache.has(id), botId: client.user?.id ?? null }))), 4000, 'Przekroczono czas zapisu stanu połączenia bota.')
+  const ping = Number(client.ws?.ping);
+  const startedAt = client.readyTimestamp ? new Date(client.readyTimestamp).toISOString() : null;
+  return withTimeout(() => Promise.all([...workerStatuses].map(([id, status]) => status.publish({ ready: ready && client.guilds.cache.has(id), botId: client.user?.id ?? null, ping, startedAt }))), 4000, 'Przekroczono czas zapisu stanu połączenia bota.')
     .catch(error => { reportFailure('Nie udało się zapisać stanu połączenia bota', error); return false; });
 }
 
