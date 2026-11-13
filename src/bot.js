@@ -21,6 +21,7 @@ import { changelogCommands, handleChangelogCommand, publishGuildChangelog } from
 import { welcomeCommands, farewellCommands } from './welcome.js';
 import { communityCommands } from './community.js';
 import { createServerBuilderSystem, serverBuilderCommands } from './server-builder.js';
+import { createServerSetupSystem, serverSetupCommands } from './server-setup.js';
 const cfg = readConfig();
 const dataDirectory = process.env.STREFA_BOT_DATA_DIR?.trim() || path.join(process.cwd(), 'data');
 const store = new ApplicationStore(path.join(dataDirectory, 'applications.json'));
@@ -42,6 +43,7 @@ const runtimes = createGuildRuntimes({ client, cfg, applicationStore: store, app
 const featureHandlers = runtimes.features;
 const proSystem = createProSystem({ client, featureStore, cfg });
 const serverBuilder = createServerBuilderSystem({ client });
+const serverSetup = createServerSetupSystem({ client, featureStore, primaryGuildId: cfg.guildId });
 const levelSystem = runtimes.levels;
 const welcomeSystem = runtimes.welcome;
 const farewellSystem = runtimes.farewell;
@@ -110,7 +112,7 @@ function initializeGuild(guild) {
   if (initializingGuilds.has(guild.id)) return initializingGuilds.get(guild.id);
   const task = (async () => {
     const registration = await registerGuildCommands({ guild,
-      commands: [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands, ...changelogCommands, ...proCommands],
+      commands: [...serverBuilderCommands, ...serverSetupCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands, ...changelogCommands, ...proCommands],
       isActive: () => client.guilds.cache.has(guild.id) && !shutdownPromise, reportFailure });
     if (!registration.ok || !client.guilds.cache.has(guild.id)) return;
     await publishGuildChangelog(guild, featureStore, { log: message => console.error(message), primaryGuildId: cfg.guildId, staffRoleId: cfg.staffRoleId, channelId: process.env.CHANGELOG_CHANNEL_ID });
@@ -136,6 +138,11 @@ client.on(Events.InteractionCreate, async interaction => {
   if (interaction.isChatInputCommand() && serverBuilderCommands.some(command=>command.name===interaction.commandName)) {
     try { await serverBuilder.command(interaction); }
     catch(error) { reportFailure('Błąd dodawania kanałów lub ról',error);const payload={content:'Nie udało się dodać elementów. Niczego nie usunięto.'};if(interaction.deferred||interaction.replied)await interaction.editReply(payload).catch(()=>{});else await interaction.reply({...payload,flags:MessageFlags.Ephemeral}).catch(()=>{}); }
+    return;
+  }
+  if (interaction.isChatInputCommand() && serverSetupCommands.some(command => command.name === interaction.commandName)) {
+    try { await serverSetup.command(interaction); }
+    catch (error) { reportFailure('Błąd konfiguracji serwera', error); const payload = { content: 'Nie udało się przygotować serwera. Niczego nie usunięto.' }; if (interaction.deferred || interaction.replied) await interaction.editReply(payload).catch(() => {}); else await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral }).catch(() => {}); }
     return;
   }
   if ((interaction.isChatInputCommand() && communityCommands.some(command => command.name === interaction.commandName)) || (interaction.isButton() && interaction.customId.startsWith('strefa:community:'))) {
@@ -198,6 +205,7 @@ client.on(Events.ShardResume, () => { void publishWorkerStatus(); });
 client.on(Events.VoiceStateUpdate, (oldState, newState) => featureHandlers.voiceState(oldState, newState));
 client.on(Events.VoiceStateUpdate, (oldState, newState) => levelSystem.voiceState(oldState, newState));
 client.on(Events.MessageCreate, message => levelSystem.message(message).catch(error => reportFailure('Błąd XP za wiadomość', error)));
+client.on(Events.MessageCreate, message => communitySystem.message(message).catch(error => reportFailure('Błąd reakcji pod pomysłem', error)));
 client.on(Events.GuildMemberAdd, member => welcomeSystem.memberJoined(member).catch(error => reportFailure('Nie udało się wysłać powitania', error)));
 client.on(Events.GuildMemberRemove, member => farewellSystem.memberLeft(member).catch(error => reportFailure('Nie udało się wysłać pożegnania', error)));
 client.on(Events.GuildMemberAdd, member => featureHandlers.memberChanged(member, true).catch(error => reportFailure('Błąd logu dołączenia', error)));

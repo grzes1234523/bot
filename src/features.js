@@ -588,10 +588,23 @@ export function createFeatureHandlers({ client, cfg, applicationStore, featureSt
         return reply(interaction, 'Nie można nadać skonfigurowanej roli. Administracja musi sprawdzić rolę i hierarchię.');
       }
       const member = await interaction.guild.members.fetch(interaction.user.id);
-      if (member.roles.cache.has(roleId)) return reply(interaction, `Masz już rolę <@&${roleId}>.`);
-      await member.roles.add(role, 'Weryfikacja przez panel StrefaBot');
-      await log(interaction.guild, '✅ Użytkownik zweryfikowany', `Użytkownik: <@${interaction.user.id}>\nRola: <@&${roleId}>`);
-      return reply(interaction, `✅ Weryfikacja zakończona. Otrzymujesz rolę <@&${roleId}>.`);
+      const hadRole = member.roles.cache.has(roleId);
+      if (!hadRole) await member.roles.add(role, 'Weryfikacja przez panel StrefaBot');
+      const unverifiedRoleId = featureStore.snapshot().verification.unverifiedRoleId;
+      let removedUnverified = false;
+      if (unverifiedRoleId && unverifiedRoleId !== roleId && member.roles.cache.has(unverifiedRoleId)) {
+        const unverified = await interaction.guild.roles.fetch(unverifiedRoleId).catch(() => null);
+        if (unverified && !unverified.managed && unverified.position < bot.roles.highest.position) {
+          await member.roles.remove(unverified, 'Weryfikacja przez panel StrefaBot');
+          removedUnverified = true;
+        }
+      }
+      const unverifiedLeft = Boolean(unverifiedRoleId && unverifiedRoleId !== roleId && member.roles.cache.has(unverifiedRoleId) && !removedUnverified);
+      if (hadRole && !removedUnverified) return reply(interaction, `Masz już rolę <@&${roleId}>.${unverifiedLeft ? ' Nie zdjęto roli niezweryfikowanego, bo jest wyżej niż rola bota.' : ''}`);
+      await log(interaction.guild, '✅ Użytkownik zweryfikowany', `Użytkownik: <@${interaction.user.id}>\nRola: <@&${roleId}>${removedUnverified ? `\nZdjęto rolę: <@&${unverifiedRoleId}>` : ''}`);
+      const extra = removedUnverified ? ' Zdjęto rolę niezweryfikowanego.' : unverifiedLeft ? ' Nie zdjęto roli niezweryfikowanego, bo jest wyżej niż rola bota.' : '';
+      if (hadRole) return reply(interaction, `Masz już rolę <@&${roleId}>.${extra}`);
+      return reply(interaction, `✅ Weryfikacja zakończona. Otrzymujesz rolę <@&${roleId}>.${extra}`);
     }
     if (interaction.customId === 'strefa:ticket:open') {
       const settings = featureStore.snapshot().tickets;
