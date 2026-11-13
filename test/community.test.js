@@ -49,6 +49,21 @@ test('losowanie odrzuca jedną opcję i nie pozwala pingować wszystkich', async
   const f=fixture();f.i.commandName='zabawa';f.i.options.getSubcommand=()=> 'losuj';f.i.options.getString=()=> 'jedna';await f.system().command(f.i);assert.match(f.calls.at(-1).content,/2 do 20/);
   f.i.options.getString=()=> '@everyone, pizza';await f.system().command(f.i);assert.deepEqual(f.calls.at(-1).allowedMentions,{parse:[]});assert.equal(f.state.community.guilds.guild.draws,1);
 });
+test('kanał pomysłów dostaje reakcje tak i nie, a bot i inny kanał nie', async () => {
+  const f = fixture();
+  f.state.community.guilds.guild.settings.ideasEnabled = true;
+  f.state.community.guilds.guild.settings.ideasChannelId = 'ideas';
+  const reactions = [];
+  const message = { guildId: 'guild', guild: f.guild, author: { bot: false }, system: false, channelId: 'ideas', channel: { permissionsFor: () => ({ has: () => true }) }, react: async emoji => reactions.push(emoji) };
+  await f.system().message(message);
+  assert.deepEqual(reactions, ['✅', '❌']);
+  message.author = { bot: true };
+  await f.system().message(message);
+  message.author = { bot: false };
+  message.channelId = 'inny';
+  await f.system().message(message);
+  assert.deepEqual(reactions, ['✅', '❌']);
+});
 test('wyłączone zabawy i inny serwer nie tworzą quizów', async () => {
   const f=fixture();f.i.commandName='zabawa';f.i.options.getSubcommand=()=> 'quiz';f.state.community.guilds.guild.settings.gamesEnabled=false;await f.system().command(f.i);assert.match(f.calls.at(-1).content,/wyłączone/);
   f.i.guildId='other';await f.system().command(f.i);assert.equal(f.state.community.guilds.guild.quizzes.length,0);

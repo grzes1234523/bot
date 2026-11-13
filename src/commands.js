@@ -4,6 +4,7 @@ import { levelCommands } from './levels.js';
 import { welcomeCommands, farewellCommands } from './welcome.js';
 import { communityCommands } from './community.js';
 import { serverBuilderCommands } from './server-builder.js';
+import { serverSetupCommands } from './server-setup.js';
 
 const applicationId = command => command.addStringOption(opt =>
   opt.setName('id').setDescription('ID podania, np. A3D4F501').setRequired(true));
@@ -56,4 +57,4 @@ for(const command of recruitmentCommands){
   if(!publicRecruitmentCommands.has(command.name))command.setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 }
 
-export const commands = [...serverBuilderCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands];
+export const commands = [...serverBuilderCommands, ...serverSetupCommands, ...recruitmentCommands, ...featureCommands, ...levelCommands, ...welcomeCommands, ...farewellCommands, ...communityCommands];

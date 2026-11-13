@@ -142,5 +142,14 @@ export function createCommunitySystem({ featureStore, guildId, now = Date.now, c
       return i.editReply(feedback);
     } finally { busy.delete(id); }
   }
-  return { command, button, tick: async()=>{await millionaires.tick();await miniGames.tick();} };
+  async function message(message) {
+    if (!message.guild || message.guildId !== guildId || message.author?.bot || message.system) return;
+    const settings = communitySettings(featureStore.snapshot(), guildId);
+    if (!settings.ideasEnabled || !settings.ideasChannelId || message.channelId !== settings.ideasChannelId) return;
+    const me = message.guild.members.me ?? await message.guild.members.fetchMe().catch(() => null);
+    if (message.channel?.permissionsFor && !message.channel.permissionsFor(me)?.has(PermissionFlagsBits.AddReactions)) return;
+    await message.react('✅').catch(() => {});
+    await message.react('❌').catch(() => {});
+  }
+  return { command, button, message, tick: async()=>{await millionaires.tick();await miniGames.tick();} };
 }

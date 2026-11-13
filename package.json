@@ -12,7 +12,7 @@
     "panel": "node src/panel.js",
     "db:migrate": "node src/migrate.js",
     "deploy": "node src/deploy-commands.js",
-    "check": "node --check src/bot.js && node --check src/levels.js && node --check src/status-reporter.js && node --check src/panel.js && node --check src/rest-client.js && node --check src/worker-status.js && node --check src/async-operation.js && node --check src/panel-server.js && node --check src/pro-system.js && node --check src/database.js && node --check src/store.js && node --check src/feature-store.js && node --check src/questions.js && node --check src/form-sessions.js && node --check src/embeds.js && node --check src/commands.js && node --check src/deploy-commands.js && node --check src/changelog.js && node --check src/changelog-releases.js && node --test"
+    "check": "node --check src/bot.js && node --check src/levels.js && node --check src/status-reporter.js && node --check src/panel.js && node --check src/rest-client.js && node --check src/worker-status.js && node --check src/async-operation.js && node --check src/panel-server.js && node --check src/pro-system.js && node --check src/database.js && node --check src/store.js && node --check src/feature-store.js && node --check src/questions.js && node --check src/form-sessions.js && node --check src/embeds.js && node --check src/commands.js && node --check src/deploy-commands.js && node --check src/changelog.js && node --check src/changelog-releases.js && node --check src/server-structure.js && node --check src/server-setup.js && node --test"
   },
   "dependencies": {
     "discord.js": "14.27.0",
