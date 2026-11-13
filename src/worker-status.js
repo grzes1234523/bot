@@ -6,6 +6,14 @@ const MAX_CLOCK_SKEW_MS = 5_000;
 const defaultStorage = { databaseEnabled, refreshDocument, updateDocument };
 const status = (botStatus, botReady = null, botLastSeen = null) => ({ botReady, botStatus, botLastSeen });
 
+function attachMetrics(result, record) {
+  if (!record || !['online', 'offline', 'stale'].includes(result.botStatus)) return result;
+  const ping = Number(record.ping);
+  if (Number.isFinite(ping) && ping >= 0 && ping <= 60_000) result.botPing = Math.round(ping);
+  if (typeof record.startedAt === 'string' && Number.isFinite(Date.parse(record.startedAt))) result.botStartedAt = new Date(Date.parse(record.startedAt)).toISOString();
+  return result;
+}
+
 /**
  * A small, independent runtime document shared by the worker and WWW panel.
  * Injected storage implements the three database.js helpers with their existing
@@ -31,7 +39,7 @@ export class WorkerStatus {
     this.#storage = storage;
   }
 
-  publish({ ready, botId = null }) {
+  publish({ ready, botId = null, ping = undefined, startedAt = undefined } = {}) {
     if (typeof ready !== 'boolean') return Promise.reject(new TypeError('ready musi być wartością logiczną.'));
     return this.#enqueue(async () => {
       if (this.#stopped || !await this.#storage.databaseEnabled()) return false;
@@ -40,6 +48,9 @@ export class WorkerStatus {
         botId: botId == null ? null : String(botId).trim(), ready,
         lastSeen: new Date(this.#now()).toISOString(),
       };
+      const numericPing = Number(ping);
+      if (Number.isFinite(numericPing) && numericPing >= 0 && numericPing <= 60_000) record.ping = Math.round(numericPing);
+      if (typeof startedAt === 'string' && Number.isFinite(Date.parse(startedAt))) record.startedAt = new Date(Date.parse(startedAt)).toISOString();
       const updated = await this.#storage.updateDocument(this.#key, record, state => {
         // A newly started worker may claim the row once. An older worker that
         // already owned it must not reclaim it during an overlapping deploy.
@@ -67,8 +78,8 @@ export class WorkerStatus {
         return status('configuration_mismatch', null, seen);
       }
       if (!validTimestamp || typeof record.ready !== 'boolean' || typeof record.instanceId !== 'string' || !record.instanceId) return status('unknown');
-      if (this.#now() - lastSeen >= MAX_AGE_MS) return status('stale', false, seen);
-      return status(record.ready ? 'online' : 'offline', record.ready, seen);
+      if (this.#now() - lastSeen >= MAX_AGE_MS) return attachMetrics(status('stale', false, seen), record);
+      return attachMetrics(status(record.ready ? 'online' : 'offline', record.ready, seen), record);
     } catch {
       // Connection errors can contain credentials. The public status is enough.
       return status('unavailable');
