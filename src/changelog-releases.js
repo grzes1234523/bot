@@ -1,6 +1,16 @@
 /** Jedno źródło wpisów o zmianach bota i strony. Daty pochodzą z historii gita. */
 export const changelogReleases = [
   {
+    id: '2026.11.14-level-card',
+    version: '2026.11.14',
+    date: '2026-11-14',
+    zmienione: [],
+    dodane: [
+      'Obrazek karty poziomu z awatarem, /ranking TOP 10, napis Następny poziom, własne tło karty.',
+    ],
+    usuniete: [],
+  },
+  {
     id: '2026.11.12-admin',
     version: '2026.11.12-admin',
     date: '2026-11-12',
