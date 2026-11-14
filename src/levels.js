@@ -1,11 +1,12 @@
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { renderLevelCardPng } from './level-card.js';
 
 export const levelDefaults = { enabled: true, messagesEnabled: true, voiceEnabled: true, messageXp: 15, messageCooldownSeconds: 60, voiceXpPerMinute: 5, announcementChannelId: null, rewards: [] };
 const levelCardCommand=name=>new SlashCommandBuilder().setName(name).setDescription('Pokazuje kartę poziomu, ranking i pasek XP.').addUserOption(o=>o.setName('uzytkownik').setDescription('Osoba, której poziom chcesz sprawdzić'));
 export const levelCommands = [
   levelCardCommand('level'),
   levelCardCommand('poziom'),
-  new SlashCommandBuilder().setName('ranking').setDescription('Ranking poziomów aktywności na serwerze.'),
+  new SlashCommandBuilder().setName('ranking').setDescription('Pokazuje TOP 10 poziomów na serwerze.'),
   new SlashCommandBuilder().setName('poziomy-ustaw').setDescription('Włącza lub wyłącza system poziomów.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
     .addBooleanOption(o => o.setName('wlaczone').setDescription('Czy zbierać XP za aktywność?').setRequired(true)),
@@ -46,12 +47,31 @@ export function buildLevelCard({user,member,account,rank,guild,timestamp=Date.no
   const format=value=>value.toLocaleString('pl-PL');
   const name=member?.displayName||user.globalName||user.username;
   const embed=new EmbedBuilder().setColor(0x9d5cff).setTitle('Karta poziomu')
-    .setDescription(`**User:** ${name}\n**Level:** ${level}\n\n\`${format(progress)} / ${format(needed)} XP\`   **LEVEL ${level}**\n\`${bar}\``)
+    .setDescription(`**User:** ${name}\n**Level:** ${level}\n\n\`${format(progress)} / ${format(needed)} XP\`   **LEVEL ${level}**\n\`${bar}\`\nNastępny: Poziom ${level+1}`)
     .setFooter({text:`${guild?.name||'Serwer Discord'} · Ranking ${rank?'#'+rank:'—'} · Łącznie ${format(xp)} XP · Wiadomości: ${account.messageCount||0} · Rozmowy: ${account.voiceMinutes||0} min`})
     .setTimestamp(timestamp);
   const avatar=member?.displayAvatarURL?.({size:256})||user.displayAvatarURL?.({size:256});
   if(avatar)embed.setThumbnail(avatar);
   return embed;
+}
+
+export function buildRankingEmbed(ranking, viewerId) {
+  const medals = ['🥇', '🥈', '🥉'];
+  const top = ranking.slice(0, 10);
+  const lines = top.map((user, index) => {
+    const place = medals[index] ?? `**${index + 1}.**`;
+    const label = user.name ? `${user.name} (<@${user.id}>)` : `<@${user.id}>`;
+    return `${place} ${label} · poziom **${user.level}** · **${Number(user.xp).toLocaleString('pl-PL')} XP**`;
+  });
+  let description = lines.join('\n') || 'Nikt jeszcze nie zdobył XP. Zacznij rozmawiać!';
+  const place = ranking.findIndex(user => user.id === viewerId);
+  if (place < 0 || place >= 10) {
+    const own = place < 0
+      ? 'Twoje miejsce: **poza rankingiem** · 0 XP'
+      : `Twoje miejsce: **#${place + 1}** · poziom **${ranking[place].level}** · **${Number(ranking[place].xp).toLocaleString('pl-PL')} XP**`;
+    description += `\n\n${own}`;
+  }
+  return new EmbedBuilder().setColor(0x9d5cff).setTitle('🏆 Ranking TOP 10').setDescription(description.slice(0, 4096));
 }
 
 export function createLevelSystem({ client, featureStore, guildId, now = Date.now }) {
@@ -156,12 +176,26 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
       return interaction.reply({ content: `System poziomów ${enabled ? 'włączony' : 'wyłączony'}. Ustawienia i role nagród zmienisz w panelu Poziomy na stronie.`, flags: MessageFlags.Ephemeral });
     }
     const ranking = levelRanking(featureStore.snapshot(), guildId);
-    if (interaction.commandName === 'ranking') return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x8b5cf6).setTitle('🏆 Ranking poziomów').setDescription(ranking.slice(0, 10).map((user, i) => `**${i + 1}.** <@${user.id}> · poziom **${user.level}** · ${user.xp} XP`).join('\n') || 'Nikt jeszcze nie zdobył XP. Zacznij rozmawiać!')], allowedMentions: { parse: [] } });
+    if (interaction.commandName === 'ranking') return interaction.reply({ embeds: [buildRankingEmbed(ranking, interaction.user.id)], allowedMentions: { parse: [] } });
     const user = interaction.options.getUser('uzytkownik') ?? interaction.user;
     const account = ranking.find(item => item.id === user.id) ?? { xp: 0, level: 0, messageCount: 0, voiceMinutes: 0 };
     const member = interaction.options.getMember?.('uzytkownik') ?? interaction.guild?.members?.cache?.get(user.id) ?? (user.id===interaction.user.id?interaction.member:null);
     const rank = ranking.findIndex(item=>item.id===user.id);
-    return interaction.reply({embeds:[buildLevelCard({user,member,account,rank:rank<0?null:rank+1,guild:interaction.guild,timestamp:now()})],allowedMentions:{parse:[]}});
+    const card = { user, member, account, rank: rank < 0 ? null : rank + 1, guild: interaction.guild, timestamp: now() };
+    try {
+      const png = await renderLevelCardPng({
+        displayName: member?.displayName || user.globalName || user.username,
+        username: user.username,
+        level: levelForXp(account.xp),
+        progress: Math.max(0, (Number(account.xp) || 0) - xpForLevel(levelForXp(account.xp))),
+        needed: xpForLevel(levelForXp(account.xp) + 1) - xpForLevel(levelForXp(account.xp)),
+        avatarUrl: member?.displayAvatarURL?.({ extension: 'png', size: 256 }) || user.displayAvatarURL?.({ extension: 'png', size: 256 }),
+      });
+      return interaction.reply({ files: [{ attachment: png, name: 'poziom.png' }], allowedMentions: { parse: [] } });
+    } catch (error) {
+      console.warn('Karta poziomu jako obrazek niedostępna:', error.message);
+      return interaction.reply({ embeds: [buildLevelCard(card)], allowedMentions: { parse: [] } });
+    }
   }
   return { message, voiceState, tick, command };
 }

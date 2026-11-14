@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Collection } from 'discord.js';
 import fs from 'node:fs';
-import { createLevelSystem, levelDefaults, levelForXp, xpForLevel, validateLevelSettings, levelCommands, levelRanking, buildLevelCard } from '../src/levels.js';
+import { createLevelSystem, levelDefaults, levelForXp, xpForLevel, validateLevelSettings, levelCommands, levelRanking, buildLevelCard, buildRankingEmbed } from '../src/levels.js';
 
 function fixture() {
   let time = 1000000;
@@ -110,14 +110,14 @@ test('błąd kanału nie odbiera XP; pusta konfiguracja wyłącza powiadomienia'
 test('karta pokazuje lokalny avatar, ranking oraz XP w bieżącym poziomie',()=>{
  const card=buildLevelCard({user:{username:'Gracz',displayAvatarURL:()=> 'https://cdn.discordapp.com/avatar.png'},member:{displayName:'Nazwa serwerowa',displayAvatarURL:()=> 'https://cdn.discordapp.com/guild.png'},account:{xp:105,messageCount:7,voiceMinutes:2},rank:3,guild:{name:'Strefa'},timestamp:1000000}).toJSON();
  assert.equal(card.title,'Karta poziomu');assert.equal(card.thumbnail.url,'https://cdn.discordapp.com/guild.png');assert.equal(card.color,0x9d5cff);
- assert.match(card.description,/User:\*\* Nazwa serwerowa/);assert.match(card.description,/Level:\*\* 1/);assert.match(card.description,/5 \/ 300 XP/);assert.match(card.description,/LEVEL 1/);assert.equal(card.description.match(/[█░]/g).length,20);assert.match(card.footer.text,/Strefa.*#3.*105 XP.*7.*2 min/);
+ assert.match(card.description,/User:\*\* Nazwa serwerowa/);assert.match(card.description,/Level:\*\* 1/);assert.match(card.description,/5 \/ 300 XP/);assert.match(card.description,/LEVEL 1/);assert.match(card.description,/Następny: Poziom 2/);assert.equal(card.description.match(/[█░]/g).length,20);assert.match(card.footer.text,/Strefa.*#3.*105 XP.*7.*2 min/);
 });
 test('karta nowej osoby nie wymyśla miejsca w rankingu, próg rozpoczyna nowy pasek',()=>{
  for(const xp of [0,100,400]){const card=buildLevelCard({user:{username:'Nowy'},account:{xp},rank:null}).toJSON();assert.match(card.footer.text,/Ranking —/);assert.equal(card.description.includes('█'),false);assert.match(card.description,/░{20}/);}
 });
 test('level i poziom pokazują kartę wybranej osoby bez zmiany jej XP',async()=>{
  const f=fixture();await f.store.update(s=>{s.levels.guilds.guild={users:{a:{xp:105,messageCount:1,voiceMinutes:0},b:{xp:500}},settings:levelDefaults};});
- for(const commandName of ['level','poziom']){let reply;await f.system().command({commandName,guildId:'guild',guild:f.guild,user:f.b.user,options:{getUser:()=>f.a.user,getMember:()=>f.a},reply:async payload=>{reply=payload;}});assert.match(reply.embeds[0].toJSON().footer.text,/Ranking #2/);assert.deepEqual(reply.allowedMentions,{parse:[]});}
+ for(const commandName of ['level','poziom']){let reply;await f.system().command({commandName,guildId:'guild',guild:f.guild,user:f.b.user,options:{getUser:()=>f.a.user,getMember:()=>f.a},reply:async payload=>{reply=payload;}});if(reply.files?.[0]){assert.equal(reply.files[0].name,'poziom.png');assert.equal(reply.files[0].attachment[0],0x89);}else{assert.match(reply.embeds[0].toJSON().description,/Następny: Poziom/);assert.match(reply.embeds[0].toJSON().footer.text,/Ranking #2/);}assert.deepEqual(reply.allowedMentions,{parse:[]});}
  assert.equal(levelRanking(f.store.snapshot(),'guild').find(u=>u.id==='a').xp,105);
 });
 test('podgląd strony używa układu User, Level, Profil i paska XP',()=>{
@@ -125,4 +125,31 @@ test('podgląd strony używa układu User, Level, Profil i paska XP',()=>{
  for(const label of ['User:','Level:','Profil:','LEVEL','progressbar'])assert.match(html,new RegExp(label));
  assert.match(html,/0 \/ 100 XP/);
  assert.match(fs.readFileSync(new URL('../src/panel/index.html',import.meta.url),'utf8'),/href="\/poziomy-podglad"/);
+});
+test('ranking TOP 10 jest malejący, ma medale i miejsce wołającego poza dziesiątką',()=>{
+ const users={};
+ for(let i=1;i<=12;i++) users['u'+i]={xp:(13-i)*10,name:'Gracz '+i,messageCount:0,voiceMinutes:0};
+ const ranking=levelRanking({levels:{guilds:{g:{users}}}},'g');
+ assert.deepEqual(ranking.map(user=>user.xp),[120,110,100,90,80,70,60,50,40,30,20,10]);
+ const top=buildRankingEmbed(ranking,'u1').toJSON();
+ assert.equal(top.title,'🏆 Ranking TOP 10');
+ assert.match(top.description,/🥇/);
+ assert.match(top.description,/🥈/);
+ assert.match(top.description,/🥉/);
+ assert.match(top.description,/\*\*4\.\*\*/);
+ assert.equal(top.description.includes('Twoje miejsce'),false);
+ assert.equal((top.description.match(/Gracz /g)||[]).length,10);
+ const outside=buildRankingEmbed(ranking,'u12').toJSON();
+ assert.match(outside.description,/Twoje miejsce: \*\*#12\*\*/);
+ assert.match(outside.description,/\*\*10 XP\*\*/);
+ const none=buildRankingEmbed(ranking,'brak').toJSON();
+ assert.match(none.description,/poza rankingiem/);
+});
+test('renderer karty zwraca PNG albo jest pomijany bez canvas',async t=>{
+ let render;
+ try{({renderLevelCardPng:render}=await import('../src/level-card.js'));}
+ catch{t.skip('Biblioteka canvas jest niedostępna');return;}
+ const png=await render({displayName:'Żółć',username:'zolc',level:1,progress:40,needed:300});
+ assert.ok(Buffer.isBuffer(png));
+ assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
 });
