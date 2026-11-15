@@ -1,6 +1,16 @@
 /** Jedno źródło wpisów o zmianach bota i strony. Daty pochodzą z historii gita. */
 export const changelogReleases = [
   {
+    id: '2026.11.15-level-up-card',
+    version: '2026.11.15',
+    date: '2026-11-15',
+    zmienione: [],
+    dodane: [
+      'Karta poziomu wysyłana automatycznie przy awansie.',
+    ],
+    usuniete: [],
+  },
+  {
     id: '2026.11.14-level-card',
     version: '2026.11.14',
     date: '2026-11-14',
