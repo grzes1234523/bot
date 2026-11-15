@@ -91,7 +91,7 @@ test('powiadomienie trafia na wybrany kanał tylko po przekroczeniu poziomu', as
   const system = f.system();
   await system.message(f.message());
   assert.equal(sent.length, 1);
-  assert.match(sent[0].content, /poziom 1/);
+  assert.match(sent[0].content, /awansował\(a\) na poziom \*\*1\*\*/);
   assert.deepEqual(sent[0].allowedMentions, { parse: [], users: ['a'] });
   f.advance(60000); await system.message(f.message());
   assert.equal(sent.length, 1);
@@ -171,4 +171,62 @@ test('renderer karty zwraca PNG albo jest pomijany bez canvas',async t=>{
  const png=await render({displayName:'Żółć',username:'zolc',level:1,progress:40,needed:300});
  assert.ok(Buffer.isBuffer(png));
  assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
+});
+test('awans wysyła jedną kartę końcowego poziomu na kanał wiadomości albo powiadomień', async () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const source = [];
+  const announced = [];
+  const sourceChannel = { isTextBased: () => true, send: async payload => source.push(payload) };
+  const f = fixture({ renderLevelCard: async card => { assert.equal(card.account.xp, 1000); return png; } });
+  f.guild.channels = { fetch: async () => ({ isTextBased: () => true, isThread: () => false, send: async payload => announced.push(payload) }) };
+  await f.store.update(state => { state.levels.guilds.guild = { settings: { ...levelDefaults, messageXp: 1000 }, users: { a: { xp: 0, messageCount: 0, voiceMinutes: 0 } } }; });
+  await f.system().message({ ...f.message(), channel: sourceChannel });
+  assert.equal(source.length, 1);
+  assert.equal(announced.length, 0);
+  assert.match(source[0].content, /<@a> awansował\(a\) na poziom \*\*3\*\*/);
+  assert.equal(source[0].files[0].name, 'poziom.png');
+  assert.equal(source[0].files[0].attachment[0], 0x89);
+  assert.deepEqual(source[0].allowedMentions, { parse: [], users: ['a'] });
+  await f.store.update(state => { state.levels.guilds.guild.settings.announcementChannelId = '123456789012345679'; state.levels.guilds.guild.users.a.xp = 0; });
+  f.advance(60000);
+  await f.system().message({ ...f.message(), channel: sourceChannel });
+  assert.equal(announced.length, 1);
+  assert.equal(source.length, 1);
+  assert.match(announced[0].content, /poziom \*\*3\*\*/);
+  assert.match(fs.readFileSync(new URL('../src/panel/index.html', import.meta.url), 'utf8'), /id="levelAnnounceCard"[^>]*>\s*Wysyłaj kartę przy awansie/);
+  assert.equal(validateLevelSettings({ ...levelDefaults, announceCard: false }).announceCard, false);
+  assert.equal(validateLevelSettings({ ...levelDefaults, announceCard: undefined }).announceCard, true);
+});
+test('błąd i limit czasu karty awansu zostawiają dotychczasowy tekst', async () => {
+  const logs = [];
+  const sent = [];
+  const channel = { isTextBased: () => true, send: async payload => sent.push(payload) };
+  const failing = fixture({ renderLevelCard: async () => { throw new Error('canvas padł'); }, levelCardLog: message => logs.push(message) });
+  await failing.store.update(state => { state.levels.guilds.guild = { settings: { ...levelDefaults }, users: { a: { xp: 90, messageCount: 0, voiceMinutes: 0 } } }; });
+  await failing.system().message({ ...failing.message(), channel });
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].files, undefined);
+  assert.match(sent[0].content, /zdobywa \*\*poziom 1\*\*/);
+  assert.match(logs[0], /\[poziom\].*canvas padł/);
+  assert.equal(levelRanking(failing.store.snapshot(), 'guild')[0].xp, 105);
+  const slow = [];
+  const timed = fixture({
+    renderLevelCard: () => new Promise(resolve => setTimeout(() => resolve(Buffer.from([0x89, 0, 0, 0, 0, 0, 0, 0])), 200)),
+    levelCardTimeoutMs: 20,
+    levelCardLog: message => logs.push(message),
+  });
+  const slowChannel = { isTextBased: () => true, send: async payload => slow.push(payload) };
+  await timed.store.update(state => { state.levels.guilds.guild = { settings: { ...levelDefaults, announceCard: true }, users: { a: { xp: 90, messageCount: 0, voiceMinutes: 0 } } }; });
+  const started = Date.now();
+  await timed.system().message({ ...timed.message(), channel: slowChannel });
+  assert.ok(Date.now() - started < 1000);
+  assert.match(slow[0].content, /zdobywa \*\*poziom 1\*\*/);
+  assert.match(logs.at(-1), /\[poziom\].*limit czasu/);
+  const quiet = [];
+  const muted = fixture({ renderLevelCard: async () => { throw new Error('nie powinno rysować'); } });
+  const quietChannel = { isTextBased: () => true, send: async payload => quiet.push(payload) };
+  await muted.store.update(state => { state.levels.guilds.guild = { settings: { ...levelDefaults, announceCard: false }, users: { a: { xp: 90, messageCount: 0, voiceMinutes: 0 } } }; });
+  await muted.system().message({ ...muted.message(), channel: quietChannel });
+  assert.equal(quiet.length, 0);
+  assert.equal(levelRanking(muted.store.snapshot(), 'guild')[0].xp, 105);
 });

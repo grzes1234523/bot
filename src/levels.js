@@ -4,7 +4,7 @@ import { cachedGuildBackground, renderLevelCardPng } from './level-card.js';
 
 const LEVEL_CARD_TIMEOUT_MS = 2500;
 
-export const levelDefaults = { enabled: true, messagesEnabled: true, voiceEnabled: true, messageXp: 15, messageCooldownSeconds: 60, voiceXpPerMinute: 5, announcementChannelId: null, rewards: [] };
+export const levelDefaults = { enabled: true, messagesEnabled: true, voiceEnabled: true, announceCard: true, messageXp: 15, messageCooldownSeconds: 60, voiceXpPerMinute: 5, announcementChannelId: null, rewards: [] };
 const levelCardCommand=name=>new SlashCommandBuilder().setName(name).setDescription('Pokazuje kartę poziomu, ranking i pasek XP.').addUserOption(o=>o.setName('uzytkownik').setDescription('Osoba, której poziom chcesz sprawdzić'));
 export const levelCommands = [
   levelCardCommand('level'),
@@ -30,11 +30,13 @@ export function validateLevelSettings(body) {
   if (!Array.isArray(body.rewards) || body.rewards.length > 20) throw new Error('Możesz ustawić maksymalnie 20 ról za poziomy.');
   const seen = new Set();
   if (body.announcementChannelId != null && body.announcementChannelId !== '' && !/^\d{17,20}$/.test(body.announcementChannelId)) throw new Error('Wybierz poprawny kanał powiadomień.');
+  const announceCard = body.announceCard == null ? true : body.announceCard;
+  if (typeof announceCard !== 'boolean') throw new Error('Sprawdź przełączniki XP.');
   for (const reward of body.rewards) {
     if (!Number.isInteger(reward.level) || reward.level < 1 || reward.level > 1000 || !/^\d{17,20}$/.test(reward.roleId) || seen.has(reward.roleId)) throw new Error('Sprawdź poziomy i role nagród; role nie mogą się powtarzać.');
     seen.add(reward.roleId);
   }
-  return { ...Object.fromEntries([...Object.keys(levelDefaults)].map(key => [key, body[key]])), announcementChannelId: body.announcementChannelId || null };
+  return { ...Object.fromEntries([...Object.keys(levelDefaults)].map(key => [key, body[key]])), announcementChannelId: body.announcementChannelId || null, announceCard };
 }
 function ensureGuild(state, guildId) {
   state.levels ??= { guilds: {} };
@@ -136,7 +138,7 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
       }
     }
   }
-  async function award(member, source, time) {
+  async function award(member, source, time, sourceChannel) {
     let awardedXp = null;
     let previousLevel = 0;
     await featureStore.update(state => {
@@ -157,17 +159,55 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
     });
     if (awardedXp != null) {
       await rewardRoles(member, awardedXp);
-      const settings = levelSettings(featureStore.snapshot(), guildId);
       const level = levelForXp(awardedXp);
-      if (level > previousLevel && settings.announcementChannelId) {
-        try {
-          const channel = await member.guild.channels.fetch(settings.announcementChannelId);
-          if (channel?.isTextBased() && !channel.isThread?.()) await channel.send({
-            content: `🎉 <@${member.id}> zdobywa **poziom ${level}**! Łącznie **${awardedXp} XP**.`,
-            allowedMentions: { parse: [], users: [member.id] },
-          });
-        } catch (error) { console.warn('Nie udało się wysłać powiadomienia o poziomie:', error.message); }
+      if (level > previousLevel) {
+        try { await announceLevelUp(member, awardedXp, level, sourceChannel); }
+        catch (error) { levelUpLog(error, 'Nie udało się wysłać powiadomienia o awansie'); }
       }
+    }
+  }
+  function levelUpLog(error, label) {
+    (options.levelCardLog ?? console.error)(`[poziom] ${label}: ${error?.message || error}`);
+  }
+  async function levelUpChannel(member, settings, sourceChannel) {
+    if (settings.announcementChannelId) {
+      const channel = await member.guild.channels.fetch(settings.announcementChannelId);
+      return channel?.isTextBased() && !channel.isThread?.() ? channel : null;
+    }
+    return sourceChannel?.isTextBased?.() ? sourceChannel : null;
+  }
+  async function announceLevelUp(member, xp, level, sourceChannel) {
+    const settings = levelSettings(featureStore.snapshot(), guildId);
+    if (settings.announceCard === false) return;
+    const mentions = { parse: [], users: [member.id] };
+    const fallback = { content: `🎉 <@${member.id}> zdobywa **poziom ${level}**! Łącznie **${xp} XP**.`, allowedMentions: mentions };
+    let channel;
+    try {
+      channel = await levelUpChannel(member, settings, sourceChannel);
+    } catch (error) {
+      levelUpLog(error, 'Nie udało się wysłać powiadomienia o awansie');
+      return;
+    }
+    if (!channel) return;
+    try {
+      const render = options.renderLevelCard ?? renderPreparedCard;
+      const png = await withTimeout(() => render({
+        user: member.user,
+        member,
+        account: { xp },
+        guildId,
+        snapshot: featureStore.snapshot(),
+      }), options.levelCardTimeoutMs ?? LEVEL_CARD_TIMEOUT_MS, 'Rysowanie karty poziomu przekroczyło limit czasu.');
+      if (!Buffer.isBuffer(png) || png.length < 8 || png[0] !== 0x89) throw new Error('Renderer nie zwrócił pliku PNG.');
+      await channel.send({
+        content: `🎉 <@${member.id}> awansował(a) na poziom **${level}**!`,
+        files: [{ attachment: png, name: 'poziom.png' }],
+        allowedMentions: mentions,
+      });
+    } catch (error) {
+      levelUpLog(error, 'Nie udało się narysować karty awansu');
+      try { await channel.send(fallback); }
+      catch (sendError) { levelUpLog(sendError, 'Nie udało się wysłać zapasowego powiadomienia o awansie'); }
     }
   }
   async function message(message) {
@@ -176,7 +216,7 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
     if (!settings.enabled || !settings.messagesEnabled) return;
     const last = featureStore.snapshot().levels?.guilds?.[guildId]?.users?.[message.author.id]?.lastMessageAt;
     if (last != null && now() - last < settings.messageCooldownSeconds * 1000) return;
-    await award(message.member, 'message', now());
+    await award(message.member, 'message', now(), message.channel);
   }
   function eligible(state) {
     if (!state?.channel || !state.member || state.member.user.bot || state.channelId === state.guild.afkChannelId || state.mute || state.deaf || state.suppress) return false;
