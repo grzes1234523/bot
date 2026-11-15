@@ -53,8 +53,9 @@ function canPost(channel, me) {
   return channel.permissionsFor?.(me)?.has?.([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks]) !== false;
 }
 
-export function changelogEmbed(release) {
+export function changelogEmbed(release, publishedAt = new Date()) {
   const entry = typeof release.version === 'string' && Array.isArray(release.zmienione) ? release : loadReleases([release])[0];
+  const when = publishedAt instanceof Date ? publishedAt : new Date(publishedAt);
   const field = items => (items.length ? items.map(item => `• ${item}`).join('\n') : '—').slice(0, 1024);
   return new EmbedBuilder()
     .setColor(0x9d5cff)
@@ -62,7 +63,7 @@ export function changelogEmbed(release) {
     .setDescription(`Data: ${entry.date}`)
     .addFields(...SECTION_LABELS.map(([key, name]) => ({ name, value: field(entry[key]) })))
     .setFooter({ text: 'informacja-bot' })
-    .setTimestamp(new Date(`${entry.date}T12:00:00Z`));
+    .setTimestamp(Number.isNaN(when.getTime()) ? new Date() : when);
 }
 
 export async function ensureChangelogChannel(guild, logOrOptions = console.error) {
@@ -133,7 +134,7 @@ export async function publishGuildChangelog(guild, featureStore, logOrOptions = 
     const pending = loadReleases().filter(release => !known.has(release.id))
       .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
     for (const release of pending) {
-      await channel.send({ embeds: [changelogEmbed(release)] });
+      await channel.send({ embeds: [changelogEmbed(release, new Date())] });
       await featureStore.update(state => {
         state.changelogPosts ??= {};
         const current = postedReleaseIds(state.changelogPosts[guild.id], channel);

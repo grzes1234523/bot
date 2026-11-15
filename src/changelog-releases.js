@@ -1,6 +1,16 @@
 /** Jedno źródło wpisów o zmianach bota i strony. Daty pochodzą z historii gita. */
 export const changelogReleases = [
   {
+    id: '2026.11.15-czas',
+    version: '2026.11.15-czas',
+    date: '2026-11-15',
+    zmienione: [
+      'Stopka ogłoszenia aktualizacji pokazuje godzinę wysłania wiadomości, a nie południe daty wpisu.',
+    ],
+    dodane: [],
+    usuniete: [],
+  },
+  {
     id: '2026.11.15-level-up-card',
     version: '2026.11.15',
     date: '2026-11-15',
