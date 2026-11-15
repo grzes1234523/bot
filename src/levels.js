@@ -1,5 +1,8 @@
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { withTimeout } from './async-operation.js';
 import { cachedGuildBackground, renderLevelCardPng } from './level-card.js';
+
+const LEVEL_CARD_TIMEOUT_MS = 2500;
 
 export const levelDefaults = { enabled: true, messagesEnabled: true, voiceEnabled: true, messageXp: 15, messageCooldownSeconds: 60, voiceXpPerMinute: 5, announcementChannelId: null, rewards: [] };
 const levelCardCommand=name=>new SlashCommandBuilder().setName(name).setDescription('Pokazuje kartę poziomu, ranking i pasek XP.').addUserOption(o=>o.setName('uzytkownik').setDescription('Osoba, której poziom chcesz sprawdzić'));
@@ -74,7 +77,51 @@ export function buildRankingEmbed(ranking, viewerId) {
   return new EmbedBuilder().setColor(0x9d5cff).setTitle('🏆 Ranking TOP 10').setDescription(description.slice(0, 4096));
 }
 
-export function createLevelSystem({ client, featureStore, guildId, now = Date.now }) {
+export async function deliverLevelCard(interaction, card, { render = renderPreparedCard, timeoutMs = LEVEL_CARD_TIMEOUT_MS, log = console.error } = {}) {
+  let acknowledged = Boolean(interaction.deferred || interaction.replied);
+  if (!acknowledged) {
+    await interaction.deferReply();
+    acknowledged = true;
+  }
+  const fallback = { embeds: [buildLevelCard(card)], allowedMentions: { parse: [] } };
+  try {
+    const png = await withTimeout(() => render(card), timeoutMs, 'Rysowanie karty poziomu przekroczyło limit czasu.');
+    if (!Buffer.isBuffer(png) || png.length < 8 || png[0] !== 0x89) throw new Error('Renderer nie zwrócił pliku PNG.');
+    const payload = { files: [{ attachment: png, name: 'poziom.png' }], allowedMentions: { parse: [] } };
+    if (acknowledged) await interaction.editReply(payload);
+    else await interaction.reply(payload);
+  } catch (error) {
+    log(`[poziom] Nie udało się narysować karty: ${error?.message || error}`);
+    try {
+      if (acknowledged) await interaction.editReply(fallback);
+      else await interaction.reply(fallback);
+    } catch (replyError) {
+      log(`[poziom] Nie udało się wysłać zapasowego embedu: ${replyError?.message || replyError}`);
+    }
+  }
+}
+
+async function renderPreparedCard(card) {
+  const { loadImage } = await import('@napi-rs/canvas');
+  const account = card.account ?? { xp: 0 };
+  const level = levelForXp(account.xp);
+  const backgroundImage = await cachedGuildBackground(card.guildId, card.snapshot ?? {}, loadImage).catch(error => {
+    console.error(`[poziom] Nie udało się odczytać tła serwera: ${error.message}`);
+    return null;
+  });
+  return renderLevelCardPng({
+    displayName: card.member?.displayName || card.user?.globalName || card.user?.username,
+    username: card.user?.username,
+    level,
+    progress: Math.max(0, (Number(account.xp) || 0) - xpForLevel(level)),
+    needed: Math.max(1, xpForLevel(level + 1) - xpForLevel(level)),
+    avatarUrl: card.member?.displayAvatarURL?.({ extension: 'png', size: 256 }) || card.user?.displayAvatarURL?.({ extension: 'png', size: 256 }),
+    backgroundImage,
+  });
+}
+
+export function createLevelSystem({ client, featureStore, guildId, now = Date.now, renderLevelCard, levelCardTimeoutMs, levelCardLog } = {}) {
+  const options = { renderLevelCard, levelCardTimeoutMs, levelCardLog };
   const voiceSince = new Map();
   let ticking = false;
   async function rewardRoles(member, xp) {
@@ -181,24 +228,8 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
     const account = ranking.find(item => item.id === user.id) ?? { xp: 0, level: 0, messageCount: 0, voiceMinutes: 0 };
     const member = interaction.options.getMember?.('uzytkownik') ?? interaction.guild?.members?.cache?.get(user.id) ?? (user.id===interaction.user.id?interaction.member:null);
     const rank = ranking.findIndex(item=>item.id===user.id);
-    const card = { user, member, account, rank: rank < 0 ? null : rank + 1, guild: interaction.guild, timestamp: now() };
-    try {
-      const { loadImage } = await import('@napi-rs/canvas');
-      const backgroundImage = await cachedGuildBackground(interaction.guildId, featureStore.snapshot(), loadImage);
-      const png = await renderLevelCardPng({
-        displayName: member?.displayName || user.globalName || user.username,
-        username: user.username,
-        level: levelForXp(account.xp),
-        progress: Math.max(0, (Number(account.xp) || 0) - xpForLevel(levelForXp(account.xp))),
-        needed: xpForLevel(levelForXp(account.xp) + 1) - xpForLevel(levelForXp(account.xp)),
-        avatarUrl: member?.displayAvatarURL?.({ extension: 'png', size: 256 }) || user.displayAvatarURL?.({ extension: 'png', size: 256 }),
-        backgroundImage,
-      });
-      return interaction.reply({ files: [{ attachment: png, name: 'poziom.png' }], allowedMentions: { parse: [] } });
-    } catch (error) {
-      console.warn('Karta poziomu jako obrazek niedostępna:', error.message);
-      return interaction.reply({ embeds: [buildLevelCard(card)], allowedMentions: { parse: [] } });
-    }
+    const card = { user, member, account, rank: rank < 0 ? null : rank + 1, guild: interaction.guild, guildId, snapshot: featureStore.snapshot(), timestamp: now() };
+    return deliverLevelCard(interaction, card, { render: options.renderLevelCard, timeoutMs: options.levelCardTimeoutMs, log: options.levelCardLog });
   }
   return { message, voiceState, tick, command };
 }

@@ -4,7 +4,7 @@ import { Collection } from 'discord.js';
 import fs from 'node:fs';
 import { createLevelSystem, levelDefaults, levelForXp, xpForLevel, validateLevelSettings, levelCommands, levelRanking, buildLevelCard, buildRankingEmbed } from '../src/levels.js';
 
-function fixture() {
+function fixture(extra = {}) {
   let time = 1000000;
   let state = { levels: { guilds: {} } };
   const store = { snapshot: () => structuredClone(state), update: async fn => fn(state) };
@@ -18,7 +18,7 @@ function fixture() {
     guild.voiceStates.cache.set(member.id, member.voice);
   }
   const roleAdds = [];
-  const system = () => createLevelSystem({ client, featureStore: store, guildId: 'guild', now: () => time });
+  const system = () => createLevelSystem({ client, featureStore: store, guildId: 'guild', now: () => time, ...extra });
   const message = () => ({ guildId: 'guild', author: a.user, member: a });
   return { system, store, a, b, guild, roleAdds, message, advance: ms => { time += ms; } };
 }
@@ -117,7 +117,7 @@ test('karta nowej osoby nie wymyśla miejsca w rankingu, próg rozpoczyna nowy p
 });
 test('level i poziom pokazują kartę wybranej osoby bez zmiany jej XP',async()=>{
  const f=fixture();await f.store.update(s=>{s.levels.guilds.guild={users:{a:{xp:105,messageCount:1,voiceMinutes:0},b:{xp:500}},settings:levelDefaults};});
- for(const commandName of ['level','poziom']){let reply;await f.system().command({commandName,guildId:'guild',guild:f.guild,user:f.b.user,options:{getUser:()=>f.a.user,getMember:()=>f.a},reply:async payload=>{reply=payload;}});if(reply.files?.[0]){assert.equal(reply.files[0].name,'poziom.png');assert.equal(reply.files[0].attachment[0],0x89);}else{assert.match(reply.embeds[0].toJSON().description,/Następny: Poziom/);assert.match(reply.embeds[0].toJSON().footer.text,/Ranking #2/);}assert.deepEqual(reply.allowedMentions,{parse:[]});}
+ for(const commandName of ['level','poziom']){let reply;const calls=[];await f.system().command({commandName,guildId:'guild',guild:f.guild,user:f.b.user,options:{getUser:()=>f.a.user,getMember:()=>f.a},deferReply:async()=>{calls.push('defer');},editReply:async payload=>{reply=payload;calls.push('edit');},reply:async payload=>{reply=payload;calls.push('reply');}});assert.equal(calls[0],'defer');if(reply.files?.[0]){assert.equal(reply.files[0].name,'poziom.png');assert.equal(reply.files[0].attachment[0],0x89);}else{assert.match(reply.embeds[0].toJSON().description,/Następny: Poziom/);assert.match(reply.embeds[0].toJSON().footer.text,/Ranking #2/);}assert.deepEqual(reply.allowedMentions,{parse:[]});}
  assert.equal(levelRanking(f.store.snapshot(),'guild').find(u=>u.id==='a').xp,105);
 });
 test('podgląd strony używa układu User, Level, Profil i paska XP',()=>{
@@ -144,6 +144,25 @@ test('ranking TOP 10 jest malejący, ma medale i miejsce wołającego poza dzies
  assert.match(outside.description,/\*\*10 XP\*\*/);
  const none=buildRankingEmbed(ranking,'brak').toJSON();
  assert.match(none.description,/poza rankingiem/);
+});
+test('błąd rysowania po deferReply wysyła zapasowy embed',async()=>{
+ const logs=[];
+ const f=fixture({renderLevelCard:async()=>{throw new Error('canvas padł');},levelCardLog:message=>logs.push(message)});
+ let reply;const calls=[];
+ await f.system().command({commandName:'poziom',guildId:'guild',guild:f.guild,user:f.a.user,options:{getUser:()=>null},deferReply:async()=>{calls.push('defer');},editReply:async payload=>{reply=payload;},reply:async payload=>{reply=payload;calls.push('reply');}});
+ assert.deepEqual(calls,['defer']);
+ assert.match(reply.embeds[0].toJSON().description,/Następny: Poziom/);
+ assert.match(logs[0],/\[poziom\]/);
+});
+test('zbyt długie rysowanie karty kończy się embedem',async()=>{
+ const logs=[];
+ const f=fixture({renderLevelCard:()=>new Promise(resolve=>setTimeout(()=>resolve(Buffer.from([0x89])),200)),levelCardTimeoutMs:20,levelCardLog:message=>logs.push(message)});
+ const started=Date.now();
+ let reply;
+ await f.system().command({commandName:'level',guildId:'guild',guild:f.guild,user:f.a.user,options:{getUser:()=>null},deferReply:async()=>{},editReply:async payload=>{reply=payload;},reply:async()=>{throw new Error('po defer nie wolno użyć reply');}});
+ assert.ok(Date.now()-started<1000);
+ assert.match(reply.embeds[0].toJSON().description,/Następny: Poziom/);
+ assert.match(logs[0],/\[poziom\].*limit czasu/);
 });
 test('renderer karty zwraca PNG albo jest pomijany bez canvas',async t=>{
  let render;
