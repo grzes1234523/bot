@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withTimeout } from './async-operation.js';
-import { levelSettings, levelRanking, validateLevelSettings } from './levels.js';
+import { levelSettings, levelRanking, levelForXp, xpForLevel, validateLevelSettings } from './levels.js';
+import { renderLevelCardPng } from './level-card.js';
+import { activeBackground, generateLevelBackground, rememberBackground, resetBackground, validateLevelCardImage } from './level-card-background.js';
 import { createLevelChannel } from './level-channel.js';
 import { welcomeSettings, configureWelcome, farewellSettings, configureFarewell } from './welcome.js';
 import { communitySettings, saveCommunitySettings, decideIdea } from './community.js';
@@ -265,6 +267,59 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
           }
           const channels = await guild.channels.fetch();
           return json(res, 200, { settings: settingsFor(featureStore.snapshot(), GUILD_ID), categories: channels.filter(c => c?.type === ChannelType.GuildCategory).map(c => ({ id: c.id, name: c.name })), channels: channels.filter(c => c && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(c.type)).map(c => ({ id: c.id, name: c.name, categoryId: c.parentId })) });
+        }
+        if (route === '/api/levels/background' || route === '/api/levels/card.png') {
+          if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
+          if (!current.value.canManage) return json(res, 403, { error: 'Potrzebujesz uprawnienia Zarządzanie serwerem.' });
+          const record = () => featureStore.snapshot().levelCardBackgrounds?.[GUILD_ID] ?? {};
+          if (route === '/api/levels/card.png') {
+            if (req.method !== 'GET') return json(res, 405, { error: 'Podgląd jest dostępny tylko do odczytu.' });
+            const active = activeBackground(record());
+            const mine = levelRanking(featureStore.snapshot(), GUILD_ID).find(item => item.id === current.value.user.id) ?? { xp: 0 };
+            const level = levelForXp(mine.xp);
+            const png = await renderLevelCardPng({
+              displayName: current.value.user.username,
+              username: current.value.user.username,
+              level,
+              progress: Math.max(0, (Number(mine.xp) || 0) - xpForLevel(level)),
+              needed: xpForLevel(level + 1) - xpForLevel(level),
+              backgroundBuffer: active?.data ? Buffer.from(active.data, 'base64') : undefined,
+            });
+            res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+            return res.end(png);
+          }
+          if (req.method === 'GET') {
+            const currentBg = record();
+            return json(res, 200, { hasSaved: Boolean(currentBg.saved?.data), hasDraft: Boolean(currentBg.draft?.data), version: currentBg.version ?? currentBg.saved?.version ?? 0, source: (currentBg.draft ?? currentBg.saved)?.source ?? null });
+          }
+          if (req.method !== 'POST') return json(res, 405, { error: 'Nieobsługiwana metoda.' });
+          if (req.headers.origin !== new URL(baseUrl).origin) return json(res, 403, { error: 'Nieprawidłowe źródło żądania.' });
+          try {
+            const body = await readJson(req, 6 * 1024 * 1024);
+            const action = String(body.action ?? '');
+            if (action === 'reset') {
+              const saved = await featureStore.update(state => resetBackground(state, GUILD_ID));
+              return json(res, 200, { ok: true, version: saved.version, hasSaved: false, hasDraft: false, source: null });
+            }
+            if (action === 'save') {
+              const draft = record().draft;
+              if (!draft?.data) return json(res, 400, { error: 'Najpierw wgraj zdjęcie albo wygeneruj tło.' });
+              const saved = await featureStore.update(state => rememberBackground(state, GUILD_ID, { bytes: Buffer.from(draft.data, 'base64'), mime: draft.mime, source: draft.source, draft: false }));
+              return json(res, 200, { ok: true, version: saved.version, hasSaved: true, hasDraft: false, source: saved.saved.source });
+            }
+            let bytes, mime, source;
+            if (action === 'upload') {
+              const image = validateLevelCardImage(body);
+              bytes = image.bytes; mime = image.mime; source = 'upload';
+            } else if (action === 'generate') {
+              bytes = await generateLevelBackground(body.prompt);
+              mime = 'image/png'; source = 'generated';
+            } else return json(res, 400, { error: 'Nieznana akcja tła.' });
+            const saved = await featureStore.update(state => rememberBackground(state, GUILD_ID, { bytes, mime, source, draft: true }));
+            return json(res, 200, { ok: true, hasDraft: true, hasSaved: Boolean(saved.saved?.data), version: saved.version ?? 0, source });
+          } catch (error) {
+            return json(res, 400, { error: error.message || 'Nie udało się zapisać tła.' });
+          }
         }
         if (route === '/api/levels' || route === '/api/levels/channel') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
