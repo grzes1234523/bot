@@ -1,5 +1,5 @@
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { renderLevelCardPng } from './level-card.js';
+import { cachedGuildBackground, renderLevelCardPng } from './level-card.js';
 
 export const levelDefaults = { enabled: true, messagesEnabled: true, voiceEnabled: true, messageXp: 15, messageCooldownSeconds: 60, voiceXpPerMinute: 5, announcementChannelId: null, rewards: [] };
 const levelCardCommand=name=>new SlashCommandBuilder().setName(name).setDescription('Pokazuje kartę poziomu, ranking i pasek XP.').addUserOption(o=>o.setName('uzytkownik').setDescription('Osoba, której poziom chcesz sprawdzić'));
@@ -183,6 +183,8 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
     const rank = ranking.findIndex(item=>item.id===user.id);
     const card = { user, member, account, rank: rank < 0 ? null : rank + 1, guild: interaction.guild, timestamp: now() };
     try {
+      const { loadImage } = await import('@napi-rs/canvas');
+      const backgroundImage = await cachedGuildBackground(interaction.guildId, featureStore.snapshot(), loadImage);
       const png = await renderLevelCardPng({
         displayName: member?.displayName || user.globalName || user.username,
         username: user.username,
@@ -190,6 +192,7 @@ export function createLevelSystem({ client, featureStore, guildId, now = Date.no
         progress: Math.max(0, (Number(account.xp) || 0) - xpForLevel(levelForXp(account.xp))),
         needed: xpForLevel(levelForXp(account.xp) + 1) - xpForLevel(levelForXp(account.xp)),
         avatarUrl: member?.displayAvatarURL?.({ extension: 'png', size: 256 }) || user.displayAvatarURL?.({ extension: 'png', size: 256 }),
+        backgroundImage,
       });
       return interaction.reply({ files: [{ attachment: png, name: 'poziom.png' }], allowedMentions: { parse: [] } });
     } catch (error) {

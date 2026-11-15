@@ -3,7 +3,7 @@ import { PermissionFlagsBits } from 'discord.js';
 
 // Starszy serwer zachowuje dokładnie dotychczasowe dane. Nowe serwery dostają
 // niezależne ustawienia; dokumenty z własnym guildId pozostają wspólne.
-const sharedKeys = new Set(['levels', 'welcome', 'farewell', 'community', 'tickets', 'embeds']);
+const sharedKeys = new Set(['levels', 'welcome', 'farewell', 'community', 'tickets', 'embeds', 'levelCardBackgrounds']);
 const localKeys = [...Object.keys(initialState()), 'logging', 'botLogs', 'serverStatistics', 'recruitment', 'botStatusChannelId']
   .filter(key => !sharedKeys.has(key));
 

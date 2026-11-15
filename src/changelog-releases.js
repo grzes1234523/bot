@@ -7,6 +7,7 @@ export const changelogReleases = [
     zmienione: [],
     dodane: [
       'Obrazek karty poziomu z awatarem, /ranking TOP 10, napis Następny poziom, własne tło karty.',
+      'Własne tło karty poziomu w panelu (zdjęcie lub generowanie z opisu).',
     ],
     usuniete: [],
   },

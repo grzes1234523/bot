@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { chooseLevelCardBackground } from './level-card-background.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const regularFont = path.join(root, 'assets', 'fonts', 'Montserrat-Regular.ttf');
@@ -59,16 +60,41 @@ export function levelCardBackgroundPath() {
   return null;
 }
 
-async function loadBackground(loadImage) {
-  const file = levelCardBackgroundPath();
-  if (file) {
-    try { return await loadImage(file); } catch { /* własne tło jest opcjonalne */ }
-  }
-  const url = process.env.LEVEL_CARD_BG_URL?.trim();
-  return loadRemoteImage(url, loadImage);
+const backgroundCache = new Map();
+const BACKGROUND_TTL_MS = 15_000;
+
+export async function cachedGuildBackground(guildId, snapshot, loadImage) {
+  const record = snapshot?.levelCardBackgrounds?.[guildId];
+  const saved = record?.saved?.data ? record.saved : null;
+  if (!saved) { backgroundCache.delete(guildId); return null; }
+  const hit = backgroundCache.get(guildId);
+  if (hit && hit.version === saved.version && Date.now() - hit.at < BACKGROUND_TTL_MS) return hit.image;
+  const image = await loadImage(Buffer.from(saved.data, 'base64'));
+  backgroundCache.set(guildId, { version: saved.version, image, at: Date.now() });
+  return image;
 }
 
-export async function renderLevelCardPng({ displayName, username, level, progress, needed, avatarUrl, avatarImage } = {}) {
+export function clearGuildBackgroundCache(guildId) {
+  if (guildId) backgroundCache.delete(guildId);
+  else backgroundCache.clear();
+}
+
+async function loadBackground(loadImage, { backgroundImage, backgroundBuffer } = {}) {
+  const file = levelCardBackgroundPath();
+  const url = process.env.LEVEL_CARD_BG_URL?.trim() || '';
+  const source = chooseLevelCardBackground({ stored: Boolean(backgroundImage || backgroundBuffer), file, url });
+  if (source === 'guild') {
+    if (backgroundImage) return backgroundImage;
+    try { return await loadImage(backgroundBuffer); } catch { /* kolejne tło */ }
+  }
+  if (source === 'file' || (file && source !== 'url')) {
+    try { if (file) return await loadImage(file); } catch { /* własne tło jest opcjonalne */ }
+  }
+  if (url) return loadRemoteImage(url, loadImage);
+  return null;
+}
+
+export async function renderLevelCardPng({ displayName, username, level, progress, needed, avatarUrl, avatarImage, backgroundImage, backgroundBuffer } = {}) {
   const { createCanvas, loadImage } = await canvasApi();
   const canvas = createCanvas(WIDTH, HEIGHT);
   const ctx = canvas.getContext('2d');
@@ -83,7 +109,7 @@ export async function renderLevelCardPng({ displayName, username, level, progres
   ctx.save();
   ctx.clip();
 
-  const background = await loadBackground(loadImage);
+  const background = await loadBackground(loadImage, { backgroundImage, backgroundBuffer });
   if (background) {
     cover(ctx, background, WIDTH, HEIGHT);
     ctx.fillStyle = 'rgba(8, 6, 22, 0.72)';

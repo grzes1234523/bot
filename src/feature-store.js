@@ -22,6 +22,7 @@ export const initialState = () => ({
   logChannelId: null,
   changelog: {},
   changelogPosts: {},
+  levelCardBackgrounds: {},
 });
 
 export class FeatureStore {
@@ -79,6 +80,7 @@ export class FeatureStore {
     state.automod = { ...initial.automod, ...(state.automod ?? {}) };
     state.changelog = { ...(state.changelog ?? {}) };
     state.changelogPosts = { ...(state.changelogPosts ?? {}) };
+    state.levelCardBackgrounds = { ...(state.levelCardBackgrounds ?? {}) };
     return state;
   }
 
