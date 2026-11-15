@@ -14,7 +14,7 @@ services:
     region: frankfurt
     plan: 0.5c-512mb
     numInstances: 1
-    buildCommand: npm ci
+    buildCommand: npm ci --include=optional
     preDeployCommand: npm run db:migrate
     startCommand: npm start
     autoDeployTrigger: checksPass
@@ -68,7 +68,7 @@ services:
     region: frankfurt
     plan: 0.5c-512mb
     numInstances: 1
-    buildCommand: npm ci
+    buildCommand: npm ci --include=optional
     preDeployCommand: npm run db:migrate
     startCommand: npm run panel
     autoDeployTrigger: checksPass

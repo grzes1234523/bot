@@ -42,7 +42,7 @@ function cover(ctx, image, width, height) {
 async function loadRemoteImage(url, loadImage) {
   if (!url || !/^https:\/\//.test(url)) return null;
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
     if (!response.ok) return null;
     const bytes = Buffer.from(await response.arrayBuffer());
     if (bytes.length < 32 || bytes.length > 4_000_000) return null;
