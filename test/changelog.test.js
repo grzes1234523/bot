@@ -93,11 +93,24 @@ test('wpis changelogu jest wysyłany raz, a restart nie dubluje embedu', async (
   assert.equal(sent.length, loadReleases().length);
   const embed = sent.at(-1).embeds[0].toJSON();
   assert.deepEqual(embed.fields.map(field => field.name), ['Zmienione', 'Dodane', 'Usunięte']);
-  assert.match(embed.description, /Data: /);
+  assert.match(embed.description, /^Data: \d{4}-\d{2}-\d{2}$/);
+  assert.ok(Math.abs(Date.now() - Date.parse(embed.timestamp)) < 5000);
+  assert.notEqual(embed.timestamp, `${embed.description.slice('Data: '.length)}T12:00:00.000Z`);
   const second = await publishGuildChangelog(guild, store, () => {});
   assert.deepEqual(second.posted, []);
   assert.equal(sent.length, loadReleases().length);
   assert.equal(changelogEmbed(loadReleases()[0]).toJSON().footer.text, 'informacja-bot');
+});
+
+test('timestamp ogłoszenia aktualizacji jest chwilą publikacji', () => {
+  const release = loadReleases().find(entry => entry.date === '2026-11-15');
+  const publishedAt = new Date('2026-11-15T19:14:00.000Z');
+  const embed = changelogEmbed(release, publishedAt).toJSON();
+  assert.equal(embed.title.startsWith('Aktualizacja '), true);
+  assert.equal(embed.description, `Data: ${release.date}`);
+  assert.equal(embed.footer.text, 'informacja-bot');
+  assert.equal(Date.parse(embed.timestamp), publishedAt.getTime());
+  assert.notEqual(embed.timestamp, `${release.date}T12:00:00.000Z`);
 });
 
 test('główny serwer publikuje na CHANGELOG_CHANNEL_ID i pokazuje go tylko administracji', async () => {
