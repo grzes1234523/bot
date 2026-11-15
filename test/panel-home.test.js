@@ -63,6 +63,26 @@ test('z centrum dowodzenia da się dojść do istniejących modułów i listy ka
   assert.match(html, /location\.hash='#server-control';location\.reload\(\)/);
 });
 
+test('tło karty poziomu jest podsekcją Poziomów, bez osobnej pozycji w menu', () => {
+  const levels = sliceElement(html, html.indexOf('<section id="module-poziomy"'), 'section');
+  assert.equal(sidebar.includes('>Tło karty<'), false);
+  assert.equal(sidebar.includes('href="#module-tlo-karty"'), false);
+  assert.match(sidebar, /href="#module-poziomy"[^>]*data-searchable="[^"]*tło karty poziomu/);
+  assert.match(levels, /id="module-tlo-karty" class="level-bg-page"/);
+  assert.equal(levels.includes('class="module-card level-bg-page"'), false);
+  assert.match(levels, /<h2 class="control-title">Tło karty poziomu<\/h2>/);
+  assert.match(levels, /Chcesz własne tło\? Wrzuć zdjęcie albo opisz, co mam wygenerować\./);
+  assert.match(levels, /id="levelBgFile"/);
+  assert.match(levels, /id="levelBgGenerate"[^>]*>Wygeneruj/);
+  assert.match(levels, /id="levelBgSave"[^>]*>Zapisz/);
+  assert.match(levels, /id="levelBgReset"[^>]*>Przywróć domyślne/);
+  assert.match(levels, /id="levelBgPreview"/);
+  assert.ok(levels.indexOf('id="levelForm"') < levels.indexOf('id="module-tlo-karty"'));
+  assert.match(html, /body:has\(#module-tlo-karty:target\) #module-poziomy\{display:block!important\}/);
+  assert.match(control, /href="#module-tlo-karty">Tło karty poziomu/);
+  assert.match(html, /hash==='#module-tlo-karty'\?'#module-poziomy'/);
+});
+
 test('wylogowana strona główna nadal pokazuje logowanie Discord', async () => {
   assert.match(html, /id="landing"/);
   assert.match(html, /body\.landing-active>header,body\.landing-active>\.module-sidebar,body\.landing-active>main,body\.landing-active>footer\{display:none!important\}/);
