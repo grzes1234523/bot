@@ -21,6 +21,14 @@ export function levelRanking(state, guildId) {
   return Object.entries(state.levels?.guilds?.[guildId]?.users ?? {}).map(([id, user]) => ({ ...user, id, level: levelForXp(user.xp) }))
     .sort((a, b) => b.xp - a.xp || a.id.localeCompare(b.id));
 }
+export function levelPanelRanking(state, guildId, limit = 100) {
+  return levelRanking(state, guildId).slice(0, limit).map(user => ({
+    id: user.id,
+    name: user.name || user.id,
+    level: levelForXp(user.xp),
+    xp: Number(user.xp) || 0,
+  }));
+}
 export function validateLevelSettings(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('Nieprawidłowe ustawienia poziomów.');
   for (const key of ['enabled', 'messagesEnabled', 'voiceEnabled']) if (typeof body[key] !== 'boolean') throw new Error('Sprawdź przełączniki XP.');
