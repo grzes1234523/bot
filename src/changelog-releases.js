@@ -1,6 +1,16 @@
 /** Jedno źródło wpisów o zmianach bota i strony. Daty pochodzą z historii gita. */
 export const changelogReleases = [
   {
+    id: '2026.11.20-ranking',
+    version: '2026.11.20',
+    date: '2026-11-20',
+    zmienione: [
+      'Tabela rankingu w panelu ma cztery kolumny: miejsce, użytkownik, poziom i XP.',
+    ],
+    dodane: [],
+    usuniete: [],
+  },
+  {
     id: '2026.11.15-czas',
     version: '2026.11.15-czas',
     date: '2026-11-15',

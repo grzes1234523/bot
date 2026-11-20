@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Collection } from 'discord.js';
 import fs from 'node:fs';
-import { createLevelSystem, levelDefaults, levelForXp, xpForLevel, validateLevelSettings, levelCommands, levelRanking, buildLevelCard, buildRankingEmbed } from '../src/levels.js';
+import { createLevelSystem, levelDefaults, levelForXp, xpForLevel, validateLevelSettings, levelCommands, levelRanking, levelPanelRanking, buildLevelCard, buildRankingEmbed } from '../src/levels.js';
 
 function fixture(extra = {}) {
   let time = 1000000;
@@ -229,4 +229,24 @@ test('błąd i limit czasu karty awansu zostawiają dotychczasowy tekst', async 
   await muted.system().message({ ...muted.message(), channel: quietChannel });
   assert.equal(quiet.length, 0);
   assert.equal(levelRanking(muted.store.snapshot(), 'guild')[0].xp, 105);
+});
+test('ranking panelu ma cztery kolumny, a poziom pochodzi z XP', () => {
+  const html = fs.readFileSync(new URL('../src/panel/index.html', import.meta.url), 'utf8');
+  const table = html.slice(html.indexOf('<h2>🏆 Ranking serwera</h2>'), html.indexOf('id="levelRanking"') + 120);
+  assert.match(table, /<th>Miejsce<\/th><th>Użytkownik<\/th><th>Poziom<\/th><th>XP<\/th><\/tr>/);
+  assert.equal(table.includes('Wiadomości z XP'), false);
+  assert.equal(table.includes('Minuty głosowe'), false);
+  const template = html.match(/\$\('levelRanking'\)\.innerHTML=data\.ranking\.map\(\(user,i\)=>`([^`]+)`/)[1];
+  assert.equal(template.match(/<td>/g).length, 4);
+  assert.match(template, /user\.level/);
+  assert.match(template, /user\.xp/);
+  assert.equal(template.includes('messageCount'), false);
+  assert.equal(template.includes('voiceMinutes'), false);
+  const ranked = levelPanelRanking({ levels: { guilds: { g: { users: {
+    a: { name: 'Grzegorz', xp: 1600, level: 0, messageCount: 4, voiceMinutes: 9 },
+    b: { name: 'youn_jung', xp: 15, level: 0, messageCount: 1 },
+  } } } } }, 'g');
+  assert.deepEqual(ranked.map(user => [user.name, user.level, user.xp]), [['Grzegorz', 4, 1600], ['youn_jung', 0, 15]]);
+  assert.equal('messageCount' in ranked[0], false);
+  assert.equal(levelForXp(60), 0);
 });

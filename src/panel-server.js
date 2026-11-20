@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withTimeout } from './async-operation.js';
-import { levelSettings, levelRanking, levelForXp, xpForLevel, validateLevelSettings } from './levels.js';
+import { levelSettings, levelRanking, levelPanelRanking, levelForXp, xpForLevel, validateLevelSettings } from './levels.js';
 import { renderLevelCardPng } from './level-card.js';
 import { activeBackground, generateLevelBackground, rememberBackground, resetBackground, validateLevelCardImage } from './level-card-background.js';
 import { createLevelChannel } from './level-channel.js';
@@ -365,7 +365,7 @@ export function startPanelServer({ client, getApplications: rootGetApplications,
           const ranking = levelRanking(state, GUILD_ID);
           const roles = await guild.roles.fetch();
           const channels = await guild.channels.fetch();
-          return json(res, 200, { settings: levelSettings(state, GUILD_ID), ranking: ranking.slice(0, 100), totals: { users: ranking.length, xp: ranking.reduce((sum, user) => sum + user.xp, 0), voiceMinutes: ranking.reduce((sum, user) => sum + user.voiceMinutes, 0) }, roles: roles.filter(role => role && role.id !== guild.id && !role.managed && role.editable).map(role => ({ id: role.id, name: role.name })), categories: channels.filter(channel => channel?.type === ChannelType.GuildCategory).map(channel => ({ id: channel.id, name: channel.name })), channels: channels.filter(channel => channel && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)).map(channel => ({ id: channel.id, name: channel.name })) });
+          return json(res, 200, { settings: levelSettings(state, GUILD_ID), ranking: levelPanelRanking(state, GUILD_ID), totals: { users: ranking.length, xp: ranking.reduce((sum, user) => sum + user.xp, 0), voiceMinutes: ranking.reduce((sum, user) => sum + user.voiceMinutes, 0) }, roles: roles.filter(role => role && role.id !== guild.id && !role.managed && role.editable).map(role => ({ id: role.id, name: role.name })), categories: channels.filter(channel => channel?.type === ChannelType.GuildCategory).map(channel => ({ id: channel.id, name: channel.name })), channels: channels.filter(channel => channel && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)).map(channel => ({ id: channel.id, name: channel.name })) });
         }
         if (route === '/api/recruitment') {
           if (!current?.value.user) return json(res, 401, { error: 'Zaloguj się przez Discord.' });
